@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=EXTRACT
+Comment=Extract the archive next to itself (c64-archive)
+Exec=c64-archive x %F
+Icon=package-x-generic
+NoDisplay=true
+MimeType=application/zip;application/x-7z-compressed;application/vnd.rar;application/x-rar;application/x-rar-compressed;application/x-arj;application/arj;application/x-lha;application/x-lzh-compressed;application/vnd.ms-cab-compressed;application/x-tar;application/x-compressed-tar;application/x-bzip-compressed-tar;application/x-bzip2-compressed-tar;application/x-xz-compressed-tar;application/x-zstd-compressed-tar;application/x-lzip-compressed-tar;application/gzip;application/x-gzip;application/x-bzip;application/x-bzip2;application/x-xz;application/zstd;application/x-lzip;

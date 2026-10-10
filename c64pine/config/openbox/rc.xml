@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Openbox for C64PINE: Pet Me 64 font, theme c64-Nx (tools/gen-assets.py).
+     c64desk is the desktop window (Desktop context); its struts keep maximized windows inside the blue screen. -->
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <resistance><strength>10</strength><screen_edge_strength>20</screen_edge_strength></resistance>
+  <focus><focusNew>yes</focusNew><followMouse>no</followMouse><focusLast>yes</focusLast><underMouse>no</underMouse><focusDelay>200</focusDelay><raiseOnFocus>no</raiseOnFocus></focus>
+  <placement><policy>Smart</policy><center>yes</center><monitor>Primary</monitor><primaryMonitor>1</primaryMonitor></placement>
+  <theme>
+    <name>c64-1x</name>
+    <titleLayout>DLIMC</titleLayout>
+    <keepBorder>yes</keepBorder>
+    <animateIconify>no</animateIconify>
+    <font place="ActiveWindow"><name>Pet Me 64</name><size>12</size><weight>Normal</weight><slant>Normal</slant></font>
+    <font place="InactiveWindow"><name>Pet Me 64</name><size>12</size><weight>Normal</weight><slant>Normal</slant></font>
+    <font place="MenuHeader"><name>Pet Me 64</name><size>12</size><weight>Normal</weight><slant>Normal</slant></font>
+    <font place="MenuItem"><name>Pet Me 64</name><size>12</size><weight>Normal</weight><slant>Normal</slant></font>
+    <font place="ActiveOnScreenDisplay"><name>Pet Me 64</name><size>12</size><weight>Normal</weight><slant>Normal</slant></font>
+    <font place="InactiveOnScreenDisplay"><name>Pet Me 64</name><size>12</size><weight>Normal</weight><slant>Normal</slant></font>
+  </theme>
+  <desktops><number>5</number><firstdesk>1</firstdesk><popupTime>0</popupTime><names><name>DESKTOP 1</name><name>DESKTOP 2</name><name>DESKTOP 3</name><name>DESKTOP 4</name><name>DESKTOP 5</name></names></desktops>
+  <resize><drawContents>yes</drawContents><popupShow>Never</popupShow><popupPosition>Center</popupPosition></resize>
+  <margins><top>0</top><bottom>0</bottom><left>0</left><right>0</right></margins>
+  <dock><position>TopLeft</position><floatingX>0</floatingX><floatingY>0</floatingY><noStrut>no</noStrut><stacking>Above</stacking><direction>Vertical</direction><autoHide>no</autoHide><hideDelay>300</hideDelay><showDelay>300</showDelay><moveButton>Middle</moveButton></dock>
+  <keyboard>
+    <chainQuitKey>C-g</chainQuitKey>
+    <keybind key="A-Return">
+      <action name="Execute"><command>sh -c c64-term</command></action>
+    </keybind>
+    <keybind key="A-space">
+      <action name="Execute"><command>sh -c c64-launch</command></action>
+    </keybind>
+    <keybind key="W-F12">  <!-- c64desk's desktop menu at the pointer -->
+      <action name="Execute"><command>c64desk --c64 menu</command></action>
+    </keybind>
+    <keybind key="A-F12">
+      <action name="Execute"><command>sh -c c64-crt</command></action>
+    </keybind>
+    <keybind key="F1">
+      <action name="Execute"><command>sh -c c64-help</command></action>
+    </keybind>
+    <keybind key="A-q">
+      <!-- VICE's main window (the C64 SCREEN) only goes back to the desktop (c64desk hides it); its dialogs close -->
+      <action name="If"><query target="default"><class>X64sc</class><type>normal</type></query><then><action name="Execute"><command>c64desk --c64 hide</command></action></then><else><action name="Close"/></else></action>
+    </keybind>
+    <keybind key="A-Tab">
+      <action name="NextWindow"/>
+    </keybind>
+    <keybind key="A-S-Tab">
+      <action name="PreviousWindow"/>
+    </keybind>
+    <keybind key="A-f">
+      <action name="ToggleFullscreen"/>
+    </keybind>
+    <keybind key="A-m">
+      <action name="ToggleMaximize"/>
+    </keybind>
+    <keybind key="A-i">
+      <action name="Iconify"/>
+    </keybind>
+    <keybind key="W-d">
+      <action name="ToggleShowDesktop"/>
+    </keybind>
+    <keybind key="A-h">
+      <action name="UnmaximizeFull"/>
+      <action name="MoveResizeTo"><x>0</x><y>0</y><width>50%</width><height>100%</height></action>
+    </keybind>
+    <keybind key="A-l">
+      <action name="UnmaximizeFull"/>
+      <action name="MoveResizeTo"><x>50%</x><y>0</y><width>50%</width><height>100%</height></action>
+    </keybind>
+    <keybind key="A-k">
+      <action name="UnmaximizeFull"/>
+      <action name="MoveResizeTo"><x>0</x><y>0</y><width>100%</width><height>50%</height></action>
+    </keybind>
+    <keybind key="A-j">
+      <action name="UnmaximizeFull"/>
+      <action name="MoveResizeTo"><x>0</x><y>50%</y><width>100%</width><height>50%</height></action>
+    </keybind>
+    <keybind key="A-c">
+      <action name="MoveResizeTo"><x>center</x><y>center</y></action>
+    </keybind>
+    <keybind key="A-1">
+      <action name="GoToDesktop"><to>1</to></action>
+    </keybind>
+    <keybind key="A-S-1">
+      <action name="SendToDesktop"><to>1</to><follow>no</follow></action>
+    </keybind>
+    <keybind key="A-2">
+      <action name="GoToDesktop"><to>2</to></action>
+    </keybind>
+    <keybind key="A-S-2">
+      <action name="SendToDesktop"><to>2</to><follow>no</follow></action>
+    </keybind>
+    <keybind key="A-3">
+      <action name="GoToDesktop"><to>3</to></action>
+    </keybind>
+    <keybind key="A-S-3">
+      <action name="SendToDesktop"><to>3</to><follow>no</follow></action>
+    </keybind>
+    <keybind key="A-4">
+      <action name="GoToDesktop"><to>4</to></action>
+    </keybind>
+    <keybind key="A-S-4">
+      <action name="SendToDesktop"><to>4</to><follow>no</follow></action>
+    </keybind>
+    <keybind key="A-5">
+      <action name="GoToDesktop"><to>5</to></action>
+    </keybind>
+    <keybind key="A-S-5">
+      <action name="SendToDesktop"><to>5</to><follow>no</follow></action>
+    </keybind>
+    <keybind key="Print">  <!-- CAPTURE: screenshots, recordings (video, GIF, WebP) -->
+      <action name="Execute"><command>c64-capture</command></action>
+    </keybind>
+    <keybind key="A-C-s">
+      <action name="Execute"><command>c64-capture shot</command></action>
+    </keybind>
+    <keybind key="A-C-r">  <!-- record the display (+ sound) into ~/rec; again = stop -->
+      <action name="Execute"><command>sh -c c64-record</command></action>
+    </keybind>
+    <keybind key="A-C-w">  <!-- the slideshow's next wallpaper -->
+      <action name="Execute"><command>sh -c "c64-wallpaper next"</command></action>
+    </keybind>
+    <keybind key="XF86AudioPlay">
+      <action name="Execute"><command>cmus-remote -u</command></action>
+    </keybind>
+    <keybind key="XF86AudioNext">
+      <action name="Execute"><command>cmus-remote -n</command></action>
+    </keybind>
+    <keybind key="XF86AudioPrev">
+      <action name="Execute"><command>cmus-remote -r</command></action>
+    </keybind>
+    <keybind key="W-Left">  <!-- left half; again: the half of the whole screen -->
+      <action name="Execute"><command>c64desk --tile left</command></action>
+    </keybind>
+    <keybind key="W-Right">  <!-- right half; again: the half of the whole screen -->
+      <action name="Execute"><command>c64desk --tile right</command></action>
+    </keybind>
+    <keybind key="W-Up">  <!-- maximize; again: the whole screen below the bar -->
+      <action name="Execute"><command>c64desk --tile up</command></action>
+    </keybind>
+    <keybind key="W-Down">  <!-- back to the size before -->
+      <action name="Execute"><command>c64desk --tile down</command></action>
+    </keybind>
+    <keybind key="A-C-Escape">
+      <action name="Exit"><prompt>no</prompt></action>
+    </keybind>
+    <keybind key="XF86MonBrightnessUp">
+      <action name="Execute"><command>brightnessctl -q set 5%+</command></action>
+    </keybind>
+    <keybind key="XF86MonBrightnessDown">
+      <action name="Execute"><command>brightnessctl -q set 5%-</command></action>
+    </keybind>
+    <keybind key="XF86Sleep">
+      <action name="Execute"><command>c64-power sleep</command></action>
+    </keybind>
+    <keybind key="XF86AudioMute">
+      <action name="Execute"><command>amixer sset Master 0%</command></action>
+    </keybind>
+    <keybind key="XF86AudioLowerVolume">
+      <action name="Execute"><command>amixer sset Master 5%-</command></action>
+    </keybind>
+    <keybind key="XF86AudioRaiseVolume">
+      <action name="Execute"><command>amixer sset Master 5%+</command></action>
+    </keybind>
+  </keyboard>
+  <mouse>
+    <dragThreshold>1</dragThreshold>
+    <doubleClickTime>300</doubleClickTime>
+    <screenEdgeWarpTime>0</screenEdgeWarpTime>
+    <context name="Frame">
+      <mousebind button="A-Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="A-Left" action="Drag"><action name="Move"/></mousebind>
+      <mousebind button="A-Right" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="A-Right" action="Drag"><action name="Resize"/></mousebind>
+      <mousebind button="A-Middle" action="Press"><action name="Lower"/><action name="FocusToBottom"/><action name="Unfocus"/></mousebind>
+    </context>
+    <context name="Titlebar">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Left" action="Drag"><action name="Move"/></mousebind>
+      <mousebind button="Left" action="DoubleClick"><action name="ToggleMaximize"/></mousebind>
+      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>c64-window</menu></action></mousebind>
+      <mousebind button="Middle" action="Press"><action name="Lower"/><action name="FocusToBottom"/><action name="Unfocus"/></mousebind>
+    </context>
+    <context name="AllDesktops">  <!-- the pin at the left of the title bar: on top + every desktop, or back -->
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Left" action="Click"><action name="If"><omnipresent>yes</omnipresent>
+        <then><action name="ToggleOmnipresent"/><action name="SendToNormalLayer"/></then>
+        <else><action name="ToggleOmnipresent"/><action name="SendToTopLayer"/></else></action></mousebind>
+    </context>
+    <context name="Client">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Middle" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+    </context>
+    <context name="Handle">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Left" action="Drag"><action name="Move"/></mousebind>
+    </context>
+    <context name="Top">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Left" action="Drag"><action name="Resize"><edge>top</edge></action></mousebind>
+      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>c64-window</menu></action></mousebind>
+    </context>
+    <context name="Bottom">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Left" action="Drag"><action name="Resize"><edge>bottom</edge></action></mousebind>
+      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>c64-window</menu></action></mousebind>
+    </context>
+    <context name="Left">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Left" action="Drag"><action name="Resize"><edge>left</edge></action></mousebind>
+      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>c64-window</menu></action></mousebind>
+    </context>
+    <context name="Right">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Left" action="Drag"><action name="Resize"><edge>right</edge></action></mousebind>
+      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>c64-window</menu></action></mousebind>
+    </context>
+    <context name="TLCorner">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Left" action="Drag"><action name="Resize"><edge>topleft</edge></action></mousebind>
+      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>c64-window</menu></action></mousebind>
+    </context>
+    <context name="TRCorner">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Left" action="Drag"><action name="Resize"><edge>topright</edge></action></mousebind>
+      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>c64-window</menu></action></mousebind>
+    </context>
+    <context name="BLCorner">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Left" action="Drag"><action name="Resize"><edge>bottomleft</edge></action></mousebind>
+      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>c64-window</menu></action></mousebind>
+    </context>
+    <context name="BRCorner">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Left" action="Drag"><action name="Resize"><edge>bottomright</edge></action></mousebind>
+      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>c64-window</menu></action></mousebind>
+    </context>
+    <context name="Grip">
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+      <mousebind button="Left" action="Drag"><action name="Resize"><edge>bottomright</edge></action></mousebind>
+      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>c64-window</menu></action></mousebind>
+    </context>
+    <context name="Iconify">
+      <mousebind button="Left" action="Click"><action name="Iconify"/></mousebind>
+    </context>
+    <context name="Maximize">
+      <mousebind button="Left" action="Click"><action name="Focus"/><action name="Raise"/><action name="ToggleMaximize"/></mousebind>
+      <mousebind button="Middle" action="Click"><action name="Focus"/><action name="Raise"/><action name="ToggleMaximize"><direction>vertical</direction></action></mousebind>
+      <mousebind button="Right" action="Click"><action name="Focus"/><action name="Raise"/><action name="ToggleMaximize"><direction>horizontal</direction></action></mousebind>
+    </context>
+    <context name="Close">
+      <mousebind button="Left" action="Click"><action name="If"><query target="default"><class>X64sc</class><type>normal</type></query><then><action name="Execute"><command>c64desk --c64 hide</command></action></then><else><action name="Close"/></else></action></mousebind>
+    </context>
+    <context name="Icon">
+      <mousebind button="Left" action="Press"><action name="ShowMenu"><menu>c64-window</menu></action></mousebind>
+    </context>
+    <context name="Desktop">
+      <mousebind button="Left" action="Press"><action name="Focus"/></mousebind>  <!-- keeps the keyboard: type BASIC on the desktop -->
+      <mousebind button="Middle" action="Press"><action name="ShowMenu"><menu>client-list-combined-menu</menu></action></mousebind>
+    </context>
+    <context name="Root">
+      <mousebind button="Middle" action="Press"><action name="ShowMenu"><menu>client-list-combined-menu</menu></action></mousebind>
+      <mousebind button="Right" action="Press"><action name="Execute"><command>c64desk --c64 menu</command></action></mousebind>
+    </context>
+  </mouse>
+  <menu><file>menu.xml</file><hideDelay>200</hideDelay><middle>no</middle><submenuShowDelay>100</submenuShowDelay><submenuHideDelay>400</submenuHideDelay><showIcons>no</showIcons><manageDesktops>no</manageDesktops></menu>
+  <applications>
+    <!-- the bar (lemonbar) on every desktop, above windows: it is restarted whenever the colours change, and a
+         restarted bar would otherwise only live on the current desktop -->
+    <application class="Bar"><desktop>all</desktop><layer>above</layer><focus>no</focus>
+      <skip_pager>yes</skip_pager><skip_taskbar>yes</skip_taskbar></application>
+    <!-- VICE's main window: c64desk shows it when wanted (the C64 SCREEN); it must not flash up when VICE starts -->
+    <application class="X64sc" title="VICE (C64SC)"><iconic>yes</iconic></application>
+    <application class="st-help"><position force="yes"><x>center</x><y>center</y></position></application>
+  </applications>
+</openbox_config>

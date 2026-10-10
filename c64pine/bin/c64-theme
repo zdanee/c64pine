@@ -1,0 +1,14 @@
+#!/bin/sh
+# colour presets for the COLOURS menu: border screen text
+
+: "${C64PINE:=$HOME/.c64pine}"
+case "${1:-}" in
+	c64) c="14 6 14" ;;
+	c128) c="13 11 13" ;;
+	vic20) c="3 1 6" ;;
+	sx64) c="14 1 6" ;;
+	pet) c="0 0 13" ;;           # green phosphor
+	*) echo "c64-theme c64 | c128 | vic20 | sx64 | pet" >&2; exit 1 ;;
+esac
+echo "$c" > "$C64PINE/config/c64/colors"
+pkill -HUP -x c64desk

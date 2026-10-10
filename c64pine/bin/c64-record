@@ -1,0 +1,70 @@
+#!/bin/sh
+: "${C64PINE:=$HOME/.c64pine}"
+# screen recorder, run again to stop
+#   c64-record [--mic|--gif|--webp|--stop|--status]
+#
+# video is mkv (h264 + aac from the default sink's monitor)
+# gif/webp: we grab lossless x264 first and convert on stop. converting
+# live was way too slow
+C="$C64PINE/cache/c64"
+PIDF="$C/rec.pid" MODEF="$C/rec.mode" TMP="$C/rec-anim.mkv"
+recording() { [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; }
+note() { c64desk --popup note --title RECORD "$@" >/dev/null 2>&1 & }
+
+
+convert() {
+	mode=$1 out="$C64PINE/rec/$(date +%Y-%m-%d-%H-%M-%S).$1"
+	scale="fps=15,scale='min(960,iw)':-2:flags=lanczos"
+	if [ "$mode" = gif ]; then
+		nice ffmpeg -hide_banner -loglevel error -nostdin -i "$TMP" \
+			-vf "$scale,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3" -loop 0 "$out"
+	else
+		enc=libwebp_anim
+		ffmpeg -hide_banner -encoders 2>/dev/null | grep -q libwebp_anim || enc=libwebp
+		nice ffmpeg -hide_banner -loglevel error -nostdin -i "$TMP" -vf "$scale" -c:v $enc -lossless 0 -q:v 75 -loop 0 "$out"
+	fi
+	rm -f "$TMP"
+	[ -n "${busy:-}" ] && kill "$busy" 2>/dev/null       # close "CONVERTING..."
+	[ -s "$out" ] && note --timeout 8 "SAVED: REC/$(basename "$out" | tr a-z A-Z)" || note "?CONVERSION FAILED  ERROR (SEE $C/rec.log)"
+}
+
+case "${1:-}" in --status) recording; exit ;; esac
+if recording; then
+	pid=$(cat "$PIDF") mode=$(cat "$MODEF" 2>/dev/null)
+	kill -INT "$pid"                      # INT, so ffmpeg writes the trailer
+	rm -f "$PIDF" "$MODEF"
+	case "$mode" in gif|webp)
+		i=0; while kill -0 "$pid" 2>/dev/null && [ $i -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
+		note "CONVERTING TO $(echo "$mode" | tr a-z A-Z)..."; busy=$!
+		convert "$mode" >>"$C/rec.log" 2>&1 & ;;
+	esac
+	exit 0
+fi
+[ "${1:-}" = --stop ] && exit 0
+mkdir -p "$C64PINE/rec" "$C"
+size=$(xdpyinfo 2>/dev/null | sed -n 's/.*dimensions: *\([0-9]*x[0-9]*\).*/\1/p')
+[ -n "$size" ] || { . "$C/geom"; size=${W}x$H; }
+mode=video
+case "${1:-}" in --gif) mode=gif ;; --webp) mode=webp ;; esac
+if [ $mode != video ]; then
+	command -v ffmpeg >/dev/null || { note "?FFMPEG NOT INSTALLED  ERROR"; exit 1; }
+	set -- -f x11grab -framerate 15 -video_size "$size" -draw_mouse 1 -i "${DISPLAY:-:0}" -c:v libx264 -preset ultrafast -qp 0
+	out=$TMP
+	rm -f "$TMP"
+else
+	out="$C64PINE/rec/$(date +%Y-%m-%d-%H-%M-%S).mkv"
+	mic=0; [ "${1:-}" = --mic ] && mic=1
+	set -- -f x11grab -framerate 30 -video_size "$size" -draw_mouse 1 -i "${DISPLAY:-:0}"
+	audio=""
+	if command -v pactl >/dev/null && sink=$(pactl get-default-sink 2>/dev/null) && [ -n "$sink" ]; then
+		set -- "$@" -f pulse -i "$sink.monitor"; audio=1
+		if [ $mic = 1 ]; then
+			set -- "$@" -f pulse -i default -filter_complex amix=inputs=2:duration=longest
+		fi
+	fi
+	set -- "$@" -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p
+	[ -n "$audio" ] && set -- "$@" -c:a aac -b:a 160k
+fi
+setsid ffmpeg -hide_banner -loglevel error -nostdin "$@" "$out" >"$C/rec.log" 2>&1 &
+echo $! > "$PIDF"
+echo $mode > "$MODEF"

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=C64 BASIC (DESKTOP)
+Comment=Load the BASIC listing into the desktop's C64
+Exec=c64desk --load %f
+Icon=floppy
+NoDisplay=true
+MimeType=application/x-c64-basic-listing;

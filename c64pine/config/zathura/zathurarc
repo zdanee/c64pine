@@ -1,0 +1,9 @@
+# C64PINE: zathura (PDF, EPUB, DjVu, comics) in the desktop's colours; c64-colors is rewritten by c64-colors.
+# Ctrl+R: the pages in the C64 colours too
+set font "PetMeWide 12"
+set guioptions s
+set statusbar-h-padding 8
+set statusbar-v-padding 4
+set selection-clipboard clipboard
+set window-title-basename true
+include c64-colors

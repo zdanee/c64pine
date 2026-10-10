@@ -1,0 +1,47 @@
+! Commodore 64 colours ("Colodore" palette) and the Pet Me 64 fonts (Kreative Software). Terminal + menu use
+! "Pet Me 64 2Y" (8x16 cells, the C128 80-column look); 12pt = 16px = 2x the glyphs.
+
+! DPI: 96 = 100%; c64-display changes it (100/200/300% keep the font pixel-perfect)
+Xft.dpi: 96
+
+! st terminal: light blue on blue, blinking block cursor
+st.font: Pet Me 64 2Y:size=12:antialias=false:autohint=false:hinting=false
+st.termname: st-256color
+st.borderpx: 16
+st.blinktimeout: 330
+st.foreground: #706deb
+st.background: #2e2c9b
+st.cursor: #706deb
+st.reverseCursor: #2e2c9b
+
+! ANSI colours from the 16 C64 colours (blue -> light blue so blue text stays readable on the blue screen)
+st.color0: #000000
+st.color1: #c46c71
+st.color2: #56ac4d
+st.color3: #edf171
+st.color4: #a9a7ff
+st.color5: #8e3c97
+st.color6: #75cec8
+st.color7: #b2b2b2
+st.color8: #4a4a4a
+st.color9: #c46c71
+st.color10: #a9ff9f
+st.color11: #edf171
+st.color12: #ffffff
+st.color13: #8e3c97
+st.color14: #75cec8
+st.color15: #ffffff
+
+! nsxiv (picture viewer): the status bar in reverse video
+Nsxiv.window.background: #2e2c9b
+Nsxiv.window.foreground: #706deb
+Nsxiv.bar.background: #706deb
+Nsxiv.bar.foreground: #2e2c9b
+Nsxiv.bar.font: Pet Me 64 2Y:size=12:antialias=false
+
+! dmenu (app menu, LOAD"*",8,1 in the bar)
+dmenu.font: Pet Me 64 2Y:size=12:antialias=false
+dmenu.normfgcolor: #706deb
+dmenu.normbgcolor: #2e2c9b
+dmenu.selfgcolor: #2e2c9b
+dmenu.selbgcolor: #706deb

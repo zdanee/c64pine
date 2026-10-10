@@ -1,0 +1,807 @@
+#!/bin/sh
+#
+# C64PINE installer
+#
+#   c64pine-install               install / update
+#   c64pine-install --uninstall
+#
+# Run as your normal user, it asks for sudo/doas only when needed.
+# Debian/Ubuntu, Arch, Fedora, Alpine. Elsewhere you have to install the
+# packages yourself.
+#
+# Everything goes to ~/.c64pine. Whatever is touched outside of it gets
+# recorded in ~/.c64pine/install/manifest so --uninstall can undo it.
+#
+set -u
+HERE=$(cd "$(dirname "$0")" && pwd)
+REPO=$(cd "$HERE/.." && pwd)
+
+if [ -f "$HERE/tui.sh" ]; then . "$HERE/tui.sh"; else . "$REPO/c64pine/lib/tui.sh"; fi
+A=${C64PINE:-$HOME/.c64pine}
+VERSION=$(cat "$REPO/VERSION" 2>/dev/null || echo dev)
+TMPD=$(mktemp -d "${TMPDIR:-/tmp}/c64pine.XXXXXX")
+LOG=$TMPD/install.log
+T="C64PINE INSTALLER"
+
+TUI_ATEXIT='rm -rf "$TMPD/src" "$TMPD/dnf"'
+# keep dnf's cache out of $HOME
+dnfq() { XDG_CACHE_HOME=$TMPD/dnf XDG_STATE_HOME=$TMPD/dnf dnf "$@"; }
+
+die() { tui_end; printf '\n?%s  ERROR\n' "$*" >&2; exit 1; }
+
+
+
+
+# ----------------------------------------------------------------------
+# detect
+# ----------------------------------------------------------------------
+detect() {
+	OS_ID=unknown OS_NAME="an unknown system" OS_LIKE=""
+	if [ -r /etc/os-release ]; then
+		OS_ID=$(. /etc/os-release; echo "${ID:-unknown}")
+		OS_LIKE=$(. /etc/os-release; echo "${ID_LIKE:-}")
+		OS_NAME=$(. /etc/os-release; echo "${PRETTY_NAME:-${NAME:-$OS_ID}}")
+	fi
+	PM=none
+	for p in apt-get:apt pacman:pacman dnf:dnf apk:apk zypper:zypper xbps-install:xbps; do
+		command -v "${p%%:*}" >/dev/null 2>&1 && { PM=${p#*:}; break; }
+	done
+	case "$PM" in apt|pacman|dnf|apk) PMOK=1 ;; *) PMOK=0 ;; esac
+	ROOT="" ROOTOK=0
+	if command -v sudo >/dev/null 2>&1; then ROOT=sudo ROOTOK=1
+	elif command -v doas >/dev/null 2>&1; then ROOT=doas ROOTOK=1; fi
+	INIT=other
+	[ -d /run/systemd/system ] && INIT=systemd
+	[ "$INIT" = other ] && command -v rc-update >/dev/null 2>&1 && INIT=openrc
+	XORG=0
+	for x in /usr/bin/Xorg /usr/lib/xorg/Xorg /usr/libexec/Xorg /usr/lib/Xorg; do [ -x "$x" ] && XORG=1; done
+	SESSTYPE=${XDG_SESSION_TYPE:-unknown}
+	DM=$(detect_dm)
+	SESSIONS=$(for f in /usr/share/xsessions/*.desktop /usr/share/wayland-sessions/*.desktop; do
+		[ -f "$f" ] && sed -n 's/^Name=//p' "$f" | head -1; done 2>/dev/null | grep -v '^C64PINE$' | sort -u | tr '\n' ',' | sed 's/,$//; s/,/, /g')
+	SOUND=none
+	command -v pulseaudio >/dev/null 2>&1 && SOUND=PulseAudio
+	command -v pipewire >/dev/null 2>&1 && SOUND=PipeWire
+	ARCH=$(uname -m)
+	PREV=""; [ -f "$A/install/manifest" ] && PREV=$(sed -n 's/^installed //p' "$A/install/manifest")
+	# no manifest (ISO install or copied by hand), treat as update anyway
+	[ -z "$PREV" ] && [ -d "$A/bin" ] && PREV="an earlier version"
+}
+
+
+detect_dm() {
+	if [ "$INIT" = systemd ] && [ -L /etc/systemd/system/display-manager.service ]; then
+		basename "$(readlink /etc/systemd/system/display-manager.service)" .service; return
+	fi
+	if [ -f /etc/X11/default-display-manager ]; then basename "$(cat /etc/X11/default-display-manager)"; return; fi
+	if [ "$INIT" = openrc ]; then
+		for d in lightdm sddm gdm lxdm slim xdm greetd ly; do
+			rc-update show default 2>/dev/null | grep -qw "$d" && { echo "$d"; return; }
+		done
+		[ -f /etc/conf.d/display-manager ] && { . /etc/conf.d/display-manager; echo "${DISPLAYMANAGER:-none}"; return; }
+	fi
+	echo none
+}
+
+
+
+
+# ----------------------------------------------------------------------
+# packages
+# ----------------------------------------------------------------------
+pkg_has() {
+	case "$PM" in
+		apt) dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q 'ok installed' ;;
+		pacman) pacman -Q "$1" >/dev/null 2>&1 ;;
+		dnf) rpm -q "$1" >/dev/null 2>&1 ;;
+		apk) apk info -e "${1%@*}" >/dev/null 2>&1 ;;
+		*) return 1 ;;
+	esac
+}
+pkg_can() {
+	case "$PM" in
+		apt) apt-cache show "$1" >/dev/null 2>&1 ;;
+		pacman) pacman -Si "$1" >/dev/null 2>&1 || pacman -Sg "$1" >/dev/null 2>&1 ;;
+		dnf) grep -qxF "$1" "$TMPD/avail" 2>/dev/null ;;
+		apk) case "$1" in *@testing) return 0 ;; esac; apk search -e "$1" 2>/dev/null | grep -q . ;;
+		*) return 1 ;;
+	esac
+}
+pkg_column() { case "$PM" in apt) echo 3 ;; pacman) echo 4 ;; dnf) echo 5 ;; apk) echo 6 ;; *) echo 0 ;; esac; }
+
+# fills NEED, NEED_RUN, BUILDNEED, HAVE, SRCS, MISSING from PARTS
+plan_packages() {
+	NEED_RUN="" NEED_BUILD="" HAVE="" MISSING="" SRCS="" col=$(pkg_column)
+	# dnf is sloooow one by one, ask for everything at once
+	if [ "$PM" = dnf ]; then
+		{ grep -v '^#' "$HERE/packages.list" | cut -d'|' -f"$col"; cat "$HERE"/src/*.sh | sed -n 's/^SRC_[A-Z]*_dnf="\(.*\)"/\1/p'; } |
+			tr ' /' '\n\n' | grep -v '^src:\|^-\?$' | sort -u >"$TMPD/want"
+		dnfq -q repoquery --qf '%{name}\n' $(cat "$TMPD/want") 2>/dev/null | sort -u >"$TMPD/avail"
+	fi
+	while IFS='|' read -r g what a b c d; do
+		case "$g" in ''|'#'*) continue ;; esac
+		case " $PARTS " in *" $g "*) ;; *) continue ;; esac
+		[ "$g" = sound ] && [ "$SOUND" != none ] && continue
+		[ "$col" = 0 ] && continue
+		names=$(printf '%s|%s|%s|%s|%s|%s\n' "$g" "$what" "$a" "$b" "$c" "$d" | cut -d'|' -f"$col")
+		if [ "$names" = "-" ]; then MISSING="$MISSING $g:$what"; continue; fi
+		for tok in $names; do plan_one "$g" "$tok"; done
+	done <"$HERE/packages.list"
+	NEED_RUN=$(uniq_words $NEED_RUN)
+	BUILDNEED=$(for p in $(uniq_words $NEED_BUILD); do case " $NEED_RUN " in *" $p "*) ;; *) echo "$p" ;; esac; done)
+	BUILDNEED=$(echo $BUILDNEED)
+	NEED=$(echo $NEED_RUN $BUILDNEED)
+	HAVE=$(uniq_words $HAVE)
+}
+uniq_words() { for w; do echo "$w"; done | awk 'NF && !s[$0]++' | tr '\n' ' ' | sed 's/ $//'; }
+
+# "a/b/src:c": installed > installable > build from source
+plan_one() {
+	alts=$(echo "$2" | tr / ' ')
+	for p in $alts; do case "$p" in src:*) ;; *) pkg_has "$p" && { HAVE="$HAVE $p"; return; } ;; esac; done
+	for p in $alts; do
+		case "$p" in
+			src:*) src_plan "${p#src:}" && return ;;
+			*) pkg_can "$p" && { if [ "$1" = build ]; then NEED_BUILD="$NEED_BUILD $p"; else NEED_RUN="$NEED_RUN $p"; fi; return; } ;;
+		esac
+	done
+	set -- "$1" $alts
+	MISSING="$MISSING $1:$2"
+}
+
+
+src_plan() {
+	f="$HERE/src/$1.sh"
+	[ -f "$f" ] || return 1
+	bd=$(. "$f"; eval "printf %s \"\${SRC_BUILD_$PM:-}\"")
+	# already built -> only runtime deps
+	[ "$(cat "$A/opt/$1/.version" 2>/dev/null)" = "$(. "$f"; echo "$SRC_VERSION")" ] && [ -n "$bd" ] && bd="true-built"
+	rd=$(. "$f"; eval "printf %s \"\${SRC_RUN_$PM:-}\"")
+	[ -n "$bd" ] || return 1
+	sr="" sb="" sh_=""
+	for t in $rd; do c=$(pick "$t") || return 1; case "$c" in have:*) sh_="$sh_ ${c#have:}" ;; *) sr="$sr $c" ;; esac; done
+	[ "$bd" = true-built ] || for t in $bd; do c=$(pick "$t") || return 1; case "$c" in have:*) sh_="$sh_ ${c#have:}" ;; *) sb="$sb $c" ;; esac; done
+	NEED_RUN="$NEED_RUN $sr" NEED_BUILD="$NEED_BUILD $sb" HAVE="$HAVE $sh_" SRCS="$SRCS $1"
+}
+
+pick() {
+	for q in $(echo "$1" | tr / ' '); do pkg_has "$q" && { echo "have:$q"; return 0; }; done
+	for q in $(echo "$1" | tr / ' '); do pkg_can "$q" && { echo "$q"; return 0; }; done
+	return 1
+}
+
+pkg_install() {
+	[ $# -gt 0 ] || return 0
+	case "$PM" in
+		apt) $ROOT env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$@" ;;
+		pacman) $ROOT pacman -S --needed --noconfirm "$@" ;;
+		dnf) $ROOT dnf install -y "$@" ;;
+		apk)
+			t="" n=""
+			for p; do case "$p" in *@testing) t="$t ${p%@*}" ;; *) n="$n $p" ;; esac; done
+			[ -z "$n" ] || $ROOT apk add --no-progress $n || return 1
+			[ -z "$t" ] || $ROOT apk add --no-progress --repository https://dl-cdn.alpinelinux.org/alpine/edge/testing $t ;;
+	esac
+}
+
+pkg_refresh() {
+	case "$PM" in
+		apt) $ROOT apt-get update ;;
+		pacman) $ROOT pacman -Sy --noconfirm ;;
+		dnf) $ROOT dnf -q makecache ;;
+		apk) $ROOT apk update ;;
+	esac
+}
+
+
+pkg_list() {
+	case "$PM" in
+		apt) dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' | awk '$1 ~ /^ii/ {print $2}' ;;
+		pacman) pacman -Qq ;;
+		dnf) rpm -qa --qf '%{NAME}\n' ;;
+		apk) apk info -q ;;
+	esac 2>/dev/null | sort -u
+}
+
+# "ours" = new since pkgs-before
+pkg_ours() {
+	if [ -f "$A/install/pkgs-ours" ]; then cat "$A/install/pkgs-ours"
+	elif [ -f "$A/install/pkgs-before" ]; then pkg_list | grep -vxF -f "$A/install/pkgs-before"
+	fi
+}
+
+#
+# Remove what we installed, but never anything that something of the
+# user's still needs. Never fails, whatever has to stay is listed.
+# This was the hardest part to get right, each package manager is different.
+#
+pkg_remove_safe() {
+	[ $# -gt 0 ] || return 0
+	pkg_ours >"$TMPD/ours"
+	for p; do echo "$p"; done >>"$TMPD/ours"
+	rm_=""
+	case "$PM" in
+		apt)
+			# purge, their /etc files came with them
+			apt_orphans >"$TMPD/orph.before"
+			rm_=$(apt_removable "$@")
+			[ -z "$rm_" ] && return 0
+			$ROOT env DEBIAN_FRONTEND=noninteractive apt-get purge -y $rm_ || pkg_one_by_one $rm_
+			# autoremove, but only ours (not what was already waiting for autoremove before)
+			apt_orphans | grep -vxF -f "$TMPD/orph.before" | grep -xF -f "$TMPD/ours" >"$TMPD/orph.new"
+			[ -s "$TMPD/orph.new" ] && $ROOT env DEBIAN_FRONTEND=noninteractive apt-get purge -y $(cat "$TMPD/orph.new")
+			# apt keeps stuff that something "recommends" (perl -> make, python -> binutils).
+			# remove those too if they're ours and nothing depends on them. loop until stable
+			for i in 1 2 3 4 5; do
+				left=$(apt-mark showauto 2>/dev/null | grep -xF -f "$TMPD/ours")
+				left=$(APT_STRICT=1 apt_removable $left 2>/dev/null)
+				[ -n "$left" ] || break
+				$ROOT env DEBIAN_FRONTEND=noninteractive apt-get purge -y $left || break
+			done
+			return 0 ;;
+		pacman)
+
+			$ROOT pacman -Rsu --noconfirm "$@" || echo "kept: (pacman removed nothing)"
+			return 0 ;;
+		dnf)
+			for p; do
+				out=$(LC_ALL=C dnfq --assumeno remove "$p" 2>&1)
+				if echo "$out" | grep -q '^Problem\|Failed to resolve'; then echo "kept: $p (dnf will not remove it)"; continue; fi
+				other=$(echo "$out" | awk '/^Removing dependent packages:/{f=1;next} /^[A-Z]/{f=0} f&&NF{print $1}' | grep -vxF -f "$TMPD/ours")
+				[ -z "$other" ] && rm_="$rm_ $p" || echo "kept: $p (needed by:" $other")"
+			done
+			[ -z "$rm_" ] || $ROOT dnf remove -y $rm_ || pkg_one_by_one $rm_
+			return 0 ;;
+		apk)
+			$ROOT apk del --no-progress $(for p; do echo "${p%@*}"; done) || pkg_one_by_one "$@"
+			return 0 ;;
+	esac
+}
+pkg_one_by_one() {
+	for p; do
+		case "$PM" in
+			apt) $ROOT env DEBIAN_FRONTEND=noninteractive apt-get remove -y "$p" ;;
+			dnf) $ROOT dnf remove -y "$p" ;;
+			apk) $ROOT apk del --no-progress "${p%@*}" ;;
+		esac >/dev/null 2>&1 || echo "kept: $p (could not be removed)"
+	done
+}
+# filter: only what apt can remove without dragging other stuff along
+apt_removable() {
+	for p; do
+		out=$(LC_ALL=C apt-get -s remove "$p" 2>&1) || { echo "kept: $p (apt would not remove it)" >&2; continue; }
+		if [ -n "${APT_STRICT:-}" ]; then other=$(echo "$out" | sed -n 's/^Remv \([^ :]*\).*/\1/p' | grep -vx "$p")
+		else other=$(echo "$out" | sed -n 's/^Remv \([^ :]*\).*/\1/p' | grep -vxF -f "$TMPD/ours"); fi
+		[ -z "$other" ] && echo "$p" || echo "kept: $p (needed by:" $other")" >&2
+	done
+}
+apt_orphans() { apt-get -s autoremove 2>/dev/null | sed -n 's/^Remv \([^ ]*\).*/\1/p' | sort; }
+
+
+
+
+# ----------------------------------------------------------------------
+# screens
+# ----------------------------------------------------------------------
+screen_welcome() {
+	tui_view "$T" "Hello! This puts C64PINE -- a Commodore 64 desktop -- on this computer, next to what you have.
+
+* Everything of it goes into ONE folder: $A
+  (its settings, programs, desktop icons). Your own settings, your desktop and your other sessions are NOT changed.
+* You choose it at the login screen as \"C64PINE\" (or start it with startx); log out to get back to your normal desktop.
+* Changes outside that folder (packages, the login screen entry) are all listed before anything happens, and recorded.
+* Changed your mind? $A/bin/c64pine uninstall takes everything back out.
+
+Version: $VERSION$( [ -n "$PREV" ] && printf '\n\nC64PINE is already installed here (%s): this updates it, your files and settings in it stay.' "$PREV")"
+}
+
+screen_report() {
+	warn=""
+	[ "$PMOK" = 1 ] || warn="$warn
+! PACKAGES: $PM is not one this installer knows (apt, pacman, dnf, apk). It shows you the list of what is needed and checks that it is there; installing those is up to you."
+	[ "$ROOTOK" = 1 ] || warn="$warn
+! ROOT: no sudo or doas: only the parts that need no root can be done (packages and the login screen entry need it)."
+	[ "$XORG" = 1 ] || warn="$warn
+! X11: no X server (Xorg) is installed yet. C64PINE is an X11 desktop: the installer adds Xorg."
+	case "$SESSTYPE" in wayland) warn="$warn
+* You are on Wayland now. That's fine: C64PINE is a separate X11 session; your Wayland desktop stays as it is." ;; esac
+	case "$ARCH" in x86_64|aarch64) ;; *) warn="$warn
+! CPU: $ARCH is not tested." ;; esac
+	tui_view "$T" "THIS COMPUTER
+  system           $OS_NAME
+  packages         $PM
+  root through     ${ROOT:-nothing (no sudo/doas)}
+  service manager  $INIT
+  login screen     $DM
+  other desktops   ${SESSIONS:-none found}
+  sound            $SOUND
+  X11 (Xorg)       $( [ "$XORG" = 1 ] && echo installed || echo 'not installed (will be)')
+${warn:+
+NOTES$warn}"
+}
+
+screen_parts() {
+	gi=on; [ "$DM" = none ] && gi=off
+	tui_check "$T" "What should be installed? (the desktop itself is always needed; the rest is up to you)" \
+		"core|THE C=64 DESKTOP, OPENBOX, THE BAR, THE TERMINAL|fixed" \
+		"vice|C64 EMULATOR VICE (BASIC ON THE DESKTOP, C64 SOFTWARE)|on" \
+		"media|MUSIC, VIDEO, PICTURES, PDF, SCREEN RECORDING|on" \
+		"archives|ZIP / 7Z / RAR / TAR TOOLS|on" \
+		"crt|CRT FILTER OVER ALL WINDOWS (PICOM)|on" \
+		"office|OFFICE APPS: ABIWORD, GNUMERIC, GIMP|off" \
+		"greeter|THE C64 LOGIN SCREEN (CHANGES YOUR LOGIN SCREEN)|off" \
+		"helper|ROOT HELPER: SET THE CLOCK, CPU POWER SETTINGS|off" \
+		"rmbuild|REMOVE THE COMPILERS AFTERWARDS (IF NEW)|on" || return 1
+	PARTS="core build $TUI_RESULT"
+	PARTS="$PARTS sound"
+	WANT_GREETER=0 WANT_HELPER=0 RMBUILD=0
+	case " $TUI_RESULT " in *" greeter "*) WANT_GREETER=1 ;; esac
+	case " $TUI_RESULT " in *" helper "*) WANT_HELPER=1 ;; esac
+	case " $TUI_RESULT " in *" rmbuild "*) RMBUILD=1 ;; esac
+	return 0
+}
+
+# lightdm picks the alphabetically first session if no default is set, and
+# that would suddenly be C64PINE. So pin the current first one.
+lightdm_keep_default() {
+	[ "$DM" = lightdm ] && [ "${WANT_GREETER:-0}" = 0 ] || return 0
+	cat /etc/lightdm/lightdm.conf /etc/lightdm/lightdm.conf.d/*.conf /usr/share/lightdm/lightdm.conf.d/*.conf 2>/dev/null |
+		grep -q '^[[:space:]]*user-session[[:space:]]*=' && return 0
+	for f in /usr/share/xsessions/*.desktop /usr/share/wayland-sessions/*.desktop; do
+		[ -f "$f" ] || continue
+		case "$f" in */c64pine.desktop) continue ;; esac
+		printf '%s\t%s\n' "$(sed -n 's/^Name=//p' "$f" | head -1)" "$(basename "$f" .desktop)"
+	done | LC_ALL=C sort -f | head -1 | cut -f2
+}
+
+
+plan_files() {
+	SYSFILES="/usr/share/xsessions/c64pine.desktop|the \"C64PINE\" entry of the login screen
+/usr/local/bin/c64pine-session|starts each user's own ~/.c64pine session"
+	KEEPDEF=$(lightdm_keep_default)
+	[ -n "$KEEPDEF" ] && SYSFILES="$SYSFILES
+/etc/lightdm/lightdm.conf.d/40-c64pine-default.conf|keeps \"$KEEPDEF\" the login screen's default session (C64PINE would sort first)"
+	if [ $WANT_GREETER = 1 ]; then SYSFILES="$SYSFILES
+/usr/local/sbin/c64pine-greeter|the C64 login screen
+/usr/share/xgreeters/c64pine-greeter.desktop|tells LightDM about it
+/etc/lightdm/lightdm.conf.d/50-c64pine-greeter.conf|selects it in LightDM
+/usr/local/share/fonts/c64pine|the Pet Me 64 fonts (for the login screen)"; fi
+	if [ $WANT_HELPER = 1 ]; then
+		SYSFILES="$SYSFILES
+/usr/local/sbin/c64-sys|the root helper (set the clock, NTP, CPU governor / turbo / profile)"
+		case "${ROOT%% *}" in
+			sudo) SYSFILES="$SYSFILES
+/etc/sudoers.d/zz-c64pine|lets you run only c64-sys without a password (named to be read last: the last rule wins)" ;;
+			doas) SYSFILES="$SYSFILES
+/etc/doas.d/zz-c64pine.conf|lets you run only c64-sys without a password" ;;
+		esac
+	fi
+	CONFLICTS=""
+	echo "$SYSFILES" | while IFS='|' read -r f w; do
+		[ -e "$f" ] || continue
+		grep -q 'C64PINE\|c64pine' "$f" 2>/dev/null && continue
+		echo "$f"
+	done >"$TMPD/conflicts"
+	CONFLICTS=$(cat "$TMPD/conflicts")
+}
+
+screen_plan() {
+	tui_msg "$T" "Looking at what is installed and what $PM can get... (this can take a minute)"
+	plan_packages
+	plan_files
+	dmline=""
+	if [ $WANT_GREETER = 1 ]; then
+		case "$DM" in
+			lightdm) dmline="LightDM is your login screen already: it gets the C64 greeter (one config file)." ;;
+			none) dmline="You start X with startx today: the C64 login screen (LightDM) will be started at boot from now on." ;;
+			*) dmline="Your login screen ($DM) is switched off and LightDM with the C64 greeter switched on. The uninstaller switches $DM back on." ;;
+		esac
+	fi
+	miss=""; for m in $MISSING; do miss="$miss
+  - ${m#*:} (not packaged on this system: that part is left out)"; done
+	tui_view "$T" "THE PLAN -- nothing has been changed yet.
+
+INTO $A (new, everything of C64PINE):
+  its programs (built here: c64desk, st, dmenu, the bar, vfetch), settings, desktop icons, fonts.
+  Your trash stays your own (~/.local/share/Trash).
+
+PACKAGES TO INSTALL ($(echo $NEED | wc -w)):
+  $(echo ${NEED:-none} | fold -s -w $((TUI_IW - 4)) | sed '2,$s/^/  /')
+$( [ -n "$BUILDNEED" ] && [ $RMBUILD = 1 ] && printf '  (the build tools among them are removed again at the end)\n')
+ALREADY HERE: $(echo $HAVE | wc -w) packages.${SRCS:+
+BUILT HERE FROM SOURCE (this system has no package of them), into $A/opt:
+$(for n in $SRCS; do (. "$HERE/src/$n.sh"; echo "  - $SRC_WHAT"); done)}${miss:+
+NOT AVAILABLE HERE:$miss}
+
+FILES OUTSIDE $A (need root, all recorded, removed by the uninstaller):
+$(echo "$SYSFILES" | while IFS='|' read -r f w; do printf '  %s\n    %s\n' "$f" "$w"; done)${CONFLICTS:+
+THESE EXIST ALREADY and would be replaced (a backup goes to $A/install/backup):
+$(echo "$CONFLICTS" | sed 's/^/  /')}${dmline:+
+
+LOGIN SCREEN:
+  $dmline}
+
+NOT TOUCHED: your ~/.config, ~/.local, shell files, desktop, other sessions and settings.
+ROOT IS USED FOR: packages, the files above$( [ $WANT_GREETER = 1 ] && printf ', the login screen'). Through: ${ROOT:-(none available)}."
+}
+
+
+
+
+# ----------------------------------------------------------------------
+# install
+# ----------------------------------------------------------------------
+
+# don't hang forever on a stalled mirror
+fetch() { curl -fsSL --connect-timeout 20 --retry 3 --retry-delay 3 --speed-limit 2000 --speed-time 30 "$1"; }
+
+src_get() {   # NAME "URL [MIRROR...]" [SHA256]
+	rm -rf "$TMPD/src/$1"; mkdir -p "$TMPD/src/$1"
+	for u in $2; do
+		echo "downloading $u"
+		fetch "$u" >"$TMPD/src/$1.tar.gz" || continue
+		if [ -n "${3:-}" ] && ! echo "$3  $TMPD/src/$1.tar.gz" | sha256sum -c - >/dev/null 2>&1; then
+			echo "checksum wrong: $u"; continue
+		fi
+		tar xzf "$TMPD/src/$1.tar.gz" -C "$TMPD/src/$1" --strip-components=1 && { rm -f "$TMPD/src/$1.tar.gz"; return 0; }
+	done
+	echo "?DOWNLOAD OF $1 FAILED"; return 1
+}
+
+build_all() {
+	set -e
+	B=$A/bin
+	mkdir -p "$B" "$A/data/terminfo"
+	cp -r "$REPO/c64desk" "$TMPD/src/c64desk"
+	make -C "$TMPD/src/c64desk" clean >/dev/null; make -C "$TMPD/src/c64desk"
+	cp -f "$TMPD/src/c64desk/c64desk" "$B/"
+	C64PINE=$A "$B/c64desk" --icons >/dev/null || true      # icon theme from the (maybe edited) sprites
+	src_get st https://gitlab.com/feloniousbonk/st-bonk/-/archive/785173ab4a05f11d7ae840d48241de4b227b7f30/st-bonk.tar.gz
+	( cd "$TMPD/src/st" && make clean >/dev/null 2>&1; make && cp -f st "$B/" && tic -sx -o "$A/data/terminfo" st.info )
+	src_get dmenu https://git.sr.ht/~kota/dmenu/archive/1fa2afd77b010c27e72fc691ffd5ec614265a926.tar.gz
+	( cd "$TMPD/src/dmenu" && make clean >/dev/null 2>&1; make && cp -f dmenu "$B/" )
+	src_get bar https://github.com/krypt-n/bar/archive/00a3fe6f3485203896156480e86014136749a221.tar.gz
+	( cd "$TMPD/src/bar" && make clean >/dev/null 2>&1; make lemonbar && cp -f lemonbar "$B/" )
+	src_get vfetch https://codeberg.org/exotya/vfetch/archive/7deac3f00372ff536bede9d469ed787bccd96544.tar.gz
+	( cd "$TMPD/src/vfetch" && patch -p1 <"$REPO/patches/vfetch-c64-logo.patch" && make clean >/dev/null 2>&1; make CFLAGS=-O2 && cp -f vfetch "$B/" )
+	set +e
+}
+
+# no package available -> build into $A/opt/NAME
+build_src() {
+	set -e
+	for n in $SRCS; do
+		(
+			. "$HERE/src/$n.sh"
+			if [ "$(cat "$A/opt/$n/.version" 2>/dev/null)" != "$SRC_VERSION" ]; then
+				src_get "$n" "$SRC_URL" "${SRC_SHA256:-}"
+				cd "$TMPD/src/$n"
+				rm -rf "$A/opt/$n"
+				src_make "$A/opt/$n"
+				echo "$SRC_VERSION" >"$A/opt/$n/.version"
+			fi
+			for b in $SRC_BINS; do ln -sf "../opt/$n/bin/$b" "$A/bin/$b"; done
+		)
+	done
+	set +e
+}
+
+copy_files() {
+	set -e
+	mkdir -p "$A"
+	# update: programs are replaced, config/desktop/etc only if the user
+	# didn't change it (compared against shipped.md5)
+	if [ -n "$PREV" ]; then
+		cp -af "$REPO/c64pine/bin/." "$A/bin/"
+		cp -af "$REPO/c64pine/lib/." "$A/lib/"
+		# sprites are handled like config, the user might have edited them
+		( cd "$REPO/c64pine" && find data -type f ! -path 'data/c64/sprites/*' ) | while IFS= read -r f; do
+			mkdir -p "$A/$(dirname "$f")"; cp -af "$REPO/c64pine/$f" "$A/$f"
+		done
+		# pre 1.2 .txt sprites: delete if unchanged, an edited one wins over the new png
+		for f in "$A"/data/c64/sprites/*.txt; do
+			[ -f "$f" ] && grep -qxF "$(md5sum <"$f" | cut -c1-32)" "$HERE/old-sprites.md5" 2>/dev/null && rm -f "$f"
+		done
+		( cd "$REPO/c64pine" && find config Desktop c64 data/c64/sprites -type f ) | while IFS= read -r f; do
+			case $f in data/c64/sprites/*.png) [ -e "$A/${f%.png}.txt" ] && continue ;; esac
+			if [ ! -e "$A/$f" ] || grep -qxF "$(cd "$A" && md5sum "$f")" "$A/install/shipped.md5" 2>/dev/null; then
+				mkdir -p "$A/$(dirname "$f")"; cp -af "$REPO/c64pine/$f" "$A/$f"
+			fi
+		done
+	else
+		cp -af "$REPO/c64pine/." "$A/"
+	fi
+	mkdir -p "$A/data/fonts" "$A/install" "$A/lib"
+
+	( cd "$REPO/c64pine" && find config Desktop c64 data/c64/sprites -type f -exec md5sum {} + ) | sort -u >"$A/install/shipped.md5"
+	cp -f "$REPO"/fonts/PetMe64.ttf "$REPO"/fonts/PetMe642Y.ttf "$REPO"/fonts/FreeLicense.txt "$A/data/fonts/"
+	rm -rf "$A/lib/installer"
+	cp -af "$HERE" "$A/lib/installer"
+	cp -f "$REPO/c64pine/lib/tui.sh" "$A/lib/installer/"
+	cp -f "$REPO/VERSION" "$A/lib/" 2>/dev/null || true
+	set +e
+}
+
+
+root_files() {
+	set -e
+	BK="$A/install/backup"
+	mkdir -p "$BK"
+	echo "$SYSFILES" | while IFS='|' read -r f w; do
+		if [ -e "$f" ] && ! grep -q 'c64pine\|C64PINE' "$f" 2>/dev/null; then
+			mkdir -p "$BK$(dirname "$f")"; $ROOT cp -a "$f" "$BK$f"; echo "file-backup $f" >>"$A/install/manifest"
+		fi
+	done
+	$ROOT install -Dm644 "$REPO/system/lightdm/c64pine.desktop" /usr/share/xsessions/c64pine.desktop
+	$ROOT install -Dm755 "$REPO/system/lightdm/c64pine-session" /usr/local/bin/c64pine-session
+	printf 'file-added %s\n' /usr/share/xsessions/c64pine.desktop /usr/local/bin/c64pine-session >>"$A/install/manifest"
+	if [ -n "$KEEPDEF" ]; then
+		printf '# C64PINE: the login screen keeps its default session (C64PINE sorts first by name)\n[Seat:*]\nuser-session=%s\n' "$KEEPDEF" >"$TMPD/40.conf"
+		$ROOT install -Dm644 "$TMPD/40.conf" /etc/lightdm/lightdm.conf.d/40-c64pine-default.conf
+		echo "file-added /etc/lightdm/lightdm.conf.d/40-c64pine-default.conf" >>"$A/install/manifest"
+	fi
+	if [ $WANT_HELPER = 1 ]; then
+		$ROOT install -Dm755 "$REPO/system/c64-sys" /usr/local/sbin/c64-sys
+		echo "file-added /usr/local/sbin/c64-sys" >>"$A/install/manifest"
+		u=$(id -un)
+		case "${ROOT%% *}" in
+			sudo) echo "$u ALL=(root) NOPASSWD: /usr/local/sbin/c64-sys" >"$TMPD/sudoers"
+			      $ROOT install -Dm440 "$TMPD/sudoers" /etc/sudoers.d/zz-c64pine
+			      echo "file-added /etc/sudoers.d/zz-c64pine" >>"$A/install/manifest" ;;
+			doas) echo "permit nopass $u cmd /usr/local/sbin/c64-sys" >"$TMPD/doas"
+			      $ROOT install -Dm400 "$TMPD/doas" /etc/doas.d/zz-c64pine.conf
+			      echo "file-added /etc/doas.d/zz-c64pine.conf" >>"$A/install/manifest" ;;
+		esac
+	fi
+	set +e
+}
+
+root_greeter() {
+	set -e
+	cp -r "$REPO/greeter" "$TMPD/src/greeter"
+	make -C "$TMPD/src/greeter"
+	$ROOT install -Dm755 "$TMPD/src/greeter/c64pine-greeter" /usr/local/sbin/c64pine-greeter
+	$ROOT install -Dm644 "$REPO/greeter/c64pine-greeter.desktop" /usr/share/xgreeters/c64pine-greeter.desktop
+	$ROOT install -Dm644 "$REPO/system/lightdm/50-c64pine-greeter.conf" /etc/lightdm/lightdm.conf.d/50-c64pine-greeter.conf
+	$ROOT install -d /usr/local/share/fonts/c64pine
+	$ROOT install -m644 "$REPO"/fonts/PetMe64.ttf "$REPO"/fonts/PetMe642Y.ttf "$REPO"/fonts/FreeLicense.txt /usr/local/share/fonts/c64pine/
+	$ROOT fc-cache -f /usr/local/share/fonts/c64pine >/dev/null 2>&1 || true
+	printf 'file-added %s\n' /usr/local/sbin/c64pine-greeter /usr/share/xgreeters/c64pine-greeter.desktop \
+		/etc/lightdm/lightdm.conf.d/50-c64pine-greeter.conf /usr/local/share/fonts/c64pine >>"$A/install/manifest"
+
+	if [ "$DM" != lightdm ]; then
+		echo "dm-previous $DM" >>"$A/install/manifest"
+		case "$INIT" in
+			systemd)
+				[ "$DM" = none ] || $ROOT systemctl disable "$DM.service" || true
+				$ROOT systemctl enable lightdm.service
+				[ -f /etc/X11/default-display-manager ] && { $ROOT cp /etc/X11/default-display-manager "$A/install/backup/default-display-manager"; echo "$(command -v lightdm)" | $ROOT tee /etc/X11/default-display-manager >/dev/null; } ;;
+			openrc)
+				[ "$DM" = none ] || $ROOT rc-update del "$DM" default || true
+				$ROOT rc-update add lightdm default ;;
+		esac
+	fi
+	set +e
+}
+
+
+rm_build() {
+	pkg_remove_safe $BUILDNEED $OLDB
+	gone=$(for p in $(sed -n 's/^pkg-build //p' "$A/install/manifest"); do pkg_has "$p" || echo "$p"; done | tr '\n' ' ')
+	awk -v g=" $gone " '!($1 == "pkg-build" && index(g, " " $2 " "))' "$A/install/manifest" >"$TMPD/m2"
+	mv "$TMPD/m2" "$A/install/manifest"
+}
+
+do_install() {
+	mkdir -p "$TMPD/src"
+	# ask for the password now, before the TUI takes over the screen
+	if [ -n "$ROOT" ] && { [ -n "$NEED" ] || [ $WANT_GREETER = 1 ] || [ "$PMOK" = 1 ]; }; then
+		tui_end
+		printf '\n**** C64PINE INSTALLER ****\n\nThe next steps need root (%s): packages and the files listed before.\n' "$ROOT"
+		if [ "$ROOT" = sudo ]; then sudo -v || die "NO ROOT"
+			( while kill -0 $$ 2>/dev/null; do sudo -n -v 2>/dev/null; sleep 50; done ) &
+			ROOT="sudo -n"
+		else doas true || die "NO ROOT"; fi
+		tui_init
+	fi
+	steps=""
+	[ -n "$NEED" ] && [ "$PMOK" = 1 ] && steps="PACKAGES ($(echo $NEED | wc -w))|pkg_refresh && pkg_install $NEED"
+
+	mkdir -p "$A/install"
+	[ -f "$A/install/pkgs-before" ] || pkg_list >"$A/install/pkgs-before"
+	# files that package scripts create and nobody removes
+	for f in /usr/local/share/applications/mimeinfo.cache /etc/alsa/state-daemon.conf; do
+		[ -e "$f" ] || grep -qxF "generated $f" "$A/install/manifest" 2>/dev/null || echo "generated $f" >>"$A/install/generated"
+	done
+	rm -f "$A/install/pkgs-ours"
+	set -- ${steps:+"$steps"} \
+		"COPYING INTO $A|copy_files" \
+		"BUILDING C64DESK, ST, DMENU, THE BAR, VFETCH|build_all"
+	[ -n "$SRCS" ] && set -- "$@" "BUILDING $(echo $SRCS | tr a-z A-Z | sed 's/ /, /g') (A WHILE)|build_src"
+	set -- "$@" "THE LOGIN SCREEN ENTRY|root_files"
+	[ $WANT_GREETER = 1 ] && set -- "$@" "THE C64 LOGIN SCREEN|root_greeter"
+
+	OLDB=$(for p in $(sed -n 's/^pkg-build //p' "$A/install/manifest" 2>/dev/null); do pkg_has "$p" && echo "$p"; done)
+	[ $RMBUILD = 1 ] && [ -n "$BUILDNEED$OLDB" ] && set -- "$@" "REMOVING THE BUILD TOOLS AGAIN|rm_build"
+	# write the manifest FIRST, so even a failed install can be undone
+	mkdir -p "$A/install"
+	{
+		echo "installed $(date '+%Y-%m-%d %H:%M') $VERSION"
+		echo "pm $PM"
+		echo "root ${ROOT%% *}"
+		[ -n "$PREV" ] && grep '^pkg-added ' "$A/install/manifest" 2>/dev/null
+		for p in $NEED; do
+			case " $BUILDNEED " in *" $p "*) [ $RMBUILD = 1 ] && { echo "pkg-build $p"; continue; } ;; esac
+			echo "pkg-added $p"
+		done
+		for p in $OLDB; do case " $BUILDNEED " in *" $p "*) ;; *) echo "pkg-build $p" ;; esac; done
+		[ -n "$PREV" ] && grep '^file-\|^dm-previous \|^generated ' "$A/install/manifest" 2>/dev/null
+		cat "$A/install/generated" 2>/dev/null; rm -f "$A/install/generated"
+	} >"$TMPD/manifest"
+	mv "$TMPD/manifest" "$A/install/manifest"
+	if tui_steps "$T" "$LOG" "$@"; then
+		cp "$LOG" "$A/install/install.log"
+		pkg_ours >"$TMPD/ours" && mv "$TMPD/ours" "$A/install/pkgs-ours"
+		return 0
+	fi
+	cp "$LOG" "$A/install/install.log" 2>/dev/null
+	tui_view "$T" "?$TUI_FAILED  ERROR
+
+The log is in $A/install/install.log (its end is above). What was done so far is recorded: run the installer again after fixing it, or $A/bin/c64pine uninstall to take it all back out."
+	return 1
+}
+
+screen_done() {
+	how="Log out, then choose \"C64PINE\" at the login screen (often under a gear / session menu)."
+	[ "$DM" = none ] && [ $WANT_GREETER = 0 ] && how="Start it from a text console (Ctrl+Alt+F2, log in) with:
+    startx $A/bin/c64-session"
+	[ $WANT_GREETER = 1 ] && how="Restart the computer (or the login manager): the C64 login screen appears; C64PINE is its first session."
+	tui_view "$T" "READY.
+
+C64PINE is installed in $A.
+
+HOW TO START IT
+  $how
+
+INSIDE: F1 = help. Your files are where they always were (the file manager, terminals and the desktop's command line see your normal home).
+
+TO TAKE IT ALL OUT AGAIN
+  $A/bin/c64pine uninstall
+
+(Press Return to leave the installer.)"
+}
+
+
+
+
+# ----------------------------------------------------------------------
+# uninstall
+# ----------------------------------------------------------------------
+uninstall() {
+	M="$A/install/manifest"
+	[ -f "$M" ] || { tui_view "C64PINE UNINSTALLER" "No C64PINE install record in $A/install. Nothing to do."; return; }
+	PM=$(sed -n 's/^pm //p' "$M"); ROOT=$(sed -n 's/^root //p' "$M")
+	pk=$(sed -n 's/^pkg-\(added\|build\) //p' "$M" | tr '\n' ' ')
+	fa=$(sed -n 's/^file-added //p' "$M")
+	fb=$(sed -n 's/^file-backup //p' "$M")
+	dmp=$(sed -n 's/^dm-previous //p' "$M")
+	# user files = anything in Desktop c64 ss rec that we didn't ship
+	( cd "$A" && find Desktop c64 ss rec -type f 2>/dev/null | while IFS= read -r f; do md5sum "$f"; done ) |
+		grep -vxF -f "$A/install/shipped.md5" 2>/dev/null | cut -c35- >"$TMPD/keep"
+	[ -f "$A/install/shipped.md5" ] || ( cd "$A" && find Desktop c64 ss rec -type f 2>/dev/null ) >"$TMPD/keep"
+	keepable=$(wc -l <"$TMPD/keep"); [ "$keepable" -gt 0 ] || keepable=""
+	tui_view "C64PINE UNINSTALLER" "THIS TAKES C64PINE OUT AGAIN -- nothing has been changed yet.
+
+FILES REMOVED (root):
+$(echo "$fa" | sed 's/^/  /')${fb:+
+PUT BACK FROM THE BACKUP:
+$(echo "$fb" | sed 's/^/  /')}${dmp:+
+THE LOGIN SCREEN: $dmp is switched back on (LightDM off).}
+
+PACKAGES IT INSTALLED ($(echo $pk | wc -w)), removed in the next step if you agree (never ones that other programs need; packages it had to update stay updated):
+  $(echo ${pk:-none} | fold -s -w $((TUI_IW - 4)) | sed '2,$s/^/  /')
+
+THE FOLDER $A is removed, with the links to it in your home folder (~/C64pine-Desktop ...)${keepable:+ -- your own files in it ($keepable: on its desktop, C64 disk, screenshots, recordings) can be kept: next step}." || return 1
+	set -- "pkgs|REMOVE THE PACKAGES IT INSTALLED|on"
+	[ -n "$keepable" ] && set -- "$@" "keep|KEEP MY $keepable FILES FROM IT IN ~/c64pine-files|on"
+	tui_check "C64PINE UNINSTALLER" "What else?" "$@" || return 1
+	RMP=0 KEEP=0
+	case " $TUI_RESULT " in *" pkgs "*) RMP=1 ;; esac
+	case " $TUI_RESULT " in *" keep "*) KEEP=1 ;; esac
+	if [ -n "$ROOT" ]; then
+		tui_end
+		printf '\n**** C64PINE UNINSTALLER ****\n\nThe next steps need root (%s).\n' "$ROOT"
+		if [ "$ROOT" = sudo ]; then sudo -v || die "NO ROOT"
+			( while kill -0 $$ 2>/dev/null; do sudo -n -v 2>/dev/null; sleep 50; done ) &
+			ROOT="sudo -n"
+		else doas true || die "NO ROOT"; fi
+		tui_init
+	fi
+	set -- "THE LOGIN SCREEN AND THE FILES OUTSIDE $A|un_files"
+	[ $RMP = 1 ] && [ -n "$pk" ] && set -- "$@" "REMOVING THE PACKAGES|pkg_remove_safe $pk"
+	set -- "$@" "REMOVING $A|un_folder"
+	if tui_steps "C64PINE UNINSTALLER" "$LOG" "$@"; then
+		tui_view "C64PINE UNINSTALLER" "READY.
+
+C64PINE is gone.$( [ $KEEP = 1 ] && [ -n "$keepable" ] && printf ' Your files from it are in ~/c64pine-files.')
+The log of this: $LOG (until the next restart)."
+	else
+		tui_view "C64PINE UNINSTALLER" "?$TUI_FAILED  ERROR -- see $LOG."
+	fi
+}
+
+un_files() {
+	if [ -n "$dmp" ]; then
+		case "$(sed -n 's/^dm-previous //p' "$M")" in none) ;; *) ;; esac
+		if [ -d /run/systemd/system ]; then
+			$ROOT systemctl disable lightdm.service || true
+			[ "$dmp" = none ] || $ROOT systemctl enable "$dmp.service"
+			[ -f "$A/install/backup/default-display-manager" ] && $ROOT cp "$A/install/backup/default-display-manager" /etc/X11/default-display-manager
+		elif command -v rc-update >/dev/null; then
+			$ROOT rc-update del lightdm default || true
+			[ "$dmp" = none ] || $ROOT rc-update add "$dmp" default
+		fi
+	fi
+	echo "$fa" | while read -r f; do [ -n "$f" ] && $ROOT rm -rf "$f"; done
+	echo "$fb" | while read -r f; do [ -n "$f" ] && [ -e "$A/install/backup$f" ] && $ROOT cp -a "$A/install/backup$f" "$f"; done
+	sed -n 's/^generated //p' "$M" | while read -r f; do [ -f "$f" ] && $ROOT rm -f "$f"; done
+	$ROOT fc-cache -f >/dev/null 2>&1 || true
+	return 0
+}
+
+un_folder() {
+	if [ $KEEP = 1 ] && [ -n "$keepable" ]; then
+		dst="$HOME/c64pine-files"
+		[ -e "$dst" ] && dst="$HOME/c64pine-files-$(date +%Y%m%d-%H%M%S)"
+		mkdir -p "$dst"
+		while IFS= read -r f; do mkdir -p "$dst/$(dirname "$f")"; cp -a "$A/$f" "$dst/$f"; done <"$TMPD/keep"
+		echo "kept in $dst: $keepable files"
+	fi
+	# ~/C64pine-* links (only symlinks pointing into $A)
+	for l in "$HOME"/* "$HOME"/.[!.]*; do
+		[ -L "$l" ] || continue
+		t=$(readlink "$l"); case $t in /*) ;; *) t="$HOME/$t" ;; esac
+		case $t in "$A"/*|"$A") rm -f "$l" ;; esac
+	done
+	rm -rf "$A"          # Trash is a symlink, rm -rf doesn't follow it
+}
+
+
+
+
+# ----------------------------------------------------------------------
+# main
+# ----------------------------------------------------------------------
+[ "$(id -u)" = 0 ] && [ -z "${C64PINE_AS_ROOT:-}" ] && {
+	echo "Run this as your normal user (not root): it installs into your home and asks for root itself when needed."
+	exit 1; }
+tui_init
+if [ "${1:-}" = --uninstall ]; then
+	# we get deleted, so run from a copy
+	uninstall
+	tui_end
+	exit 0
+fi
+# the project used to be called ALPINE 64 (~/.alpine64). no in-place upgrade from that,
+# its own uninstaller has to go first (it keeps the user's files)
+if [ -x "$HOME/.alpine64/bin/alpine64" ]; then
+	tui_view "$T" "An older version is installed here under its old name, ALPINE 64 (in ~/.alpine64).
+
+Remove it first with its own uninstaller, then run this installer again:
+
+  ~/.alpine64/bin/alpine64 uninstall
+
+It keeps your own files from it (desktop, C64 disk, screenshots, recordings) in ~/alpine64-files."
+	tui_end; exit 1
+fi
+detect
+screen_welcome || { tui_end; exit 0; }
+while :; do
+	screen_report || { tui_end; exit 0; }
+	screen_parts || continue
+	screen_plan || continue
+	tui_menu "$T" "Go ahead? (nothing has been changed so far)" "INSTALL" "BACK (CHANGE THE PARTS)" "QUIT" || continue
+	case "$TUI_RESULT" in 1) break ;; 2) continue ;; *) tui_end; exit 0 ;; esac
+done
+do_install && screen_done
+tui_end

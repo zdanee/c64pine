@@ -1,0 +1,109 @@
+#!/bin/sh
+: "${C64PINE:=$HOME/.c64pine}"
+# the bar (lemonbar) in the top border
+# clicks: lemonbar prints the command, the sh at the end of the pipe runs it
+W=1024 BX=88 BY=104 PX=2 BORDER='#706deb' SCREEN='#2e2c9b' TEXT='#706deb'
+[ -f "$C64PINE/cache/c64/geom" ] && . "$C64PINE/cache/c64/geom"
+H=$(( 10 * PX ))
+Y=$(( (BY - H) / 2 )); [ "$Y" -lt 0 ] && Y=0
+GREY='#4a4a4a'
+# screen colour as text, unless too close to the border colour
+lum() { h=${1#\#}; set -- $(echo "$h" | sed 's/\(..\)\(..\)\(..\)/0x\1 0x\2 0x\3/'); echo $(( ($1 * 299 + $2 * 587 + $3 * 114) / 1000 )); }
+FG=$SCREEN
+for c in "$SCREEN" "$TEXT" '#ffffff' '#000000'; do
+	d=$(( $(lum "$c") - $(lum "$BORDER") )); [ ${d#-} -ge 45 ] && { FG=$c; break; }
+done
+
+tasks() {
+	root=$(xprop -root _NET_CLIENT_LIST _NET_ACTIVE_WINDOW _NET_CURRENT_DESKTOP 2>/dev/null)
+	active=$(echo "$root" | sed -n 's/^_NET_ACTIVE_WINDOW.*# \(0x[0-9a-f]*\).*/\1/p')
+	cur=$(echo "$root" | sed -n 's/^_NET_CURRENT_DESKTOP.*= \([0-9]*\).*/\1/p')
+	for w in $(echo "$root" | sed -n 's/^_NET_CLIENT_LIST[^#]*# //p' | tr -d ','); do
+		xprop -id "$w" -notype WM_CLASS _NET_WM_DESKTOP _NET_WM_STATE _NET_WM_WINDOW_TYPE 2>/dev/null \
+			| awk -v w="$w" '
+				/^WM_CLASS/ { n = split($0, a, "\""); cls = a[n - 1] }
+				/^_NET_WM_DESKTOP/ { desk = $NF }
+				/^_NET_WM_WINDOW_TYPE/ { if ($0 ~ /DOCK|DESKTOP/) skip = 1 }
+				/^_NET_WM_STATE/ { if ($0 ~ /HIDDEN/) hid = 1; if ($0 ~ /SKIP_TASKBAR/) skip = 1 }
+				END { if (cls != "" && !skip) print w, cls, (desk == "" ? 0 : desk), hid + 0 }' \
+			| { read -r line; [ -n "$line" ] && echo "$(printf '%d' "${line%% *}") $line"; }
+	done | sort -n | cut -d' ' -f2- | awk -v act="$active" -v cur="$cur" -v sel="%{B$FG}%{F$BORDER}" -v grey="%{F$GREY}" '
+		{
+			name = toupper($2)
+			if (name == "ST" || name == "ST-256COLOR") name = "TERMINAL"
+			if (name == "C64FOLDER") name = "FOLDER"
+			n[name]++
+			if (n[name] > 1) name = name ":" n[name]
+			style = ""
+			if ($1 == act) style = sel
+			else if ($4 == 1 || ($3 != cur && $3 != 4294967295)) style = grey
+			printf "%s", "  " style "%{A:xdotool windowactivate " $1 ":} " name " %{A}%{B-}%{F-}"
+		}'
+}
+
+
+# desktops
+desks() {
+	cur=$(xprop -root _NET_CURRENT_DESKTOP 2>/dev/null | sed -n 's/.*= \([0-9]*\).*/\1/p')
+	d=0
+	while [ $d -lt 5 ]; do
+		if [ "$d" = "$cur" ]; then c='■'; else c='▪'; fi
+		printf '%s' "%{A:xdotool set_desktop $d:}$c%{A}"
+		d=$((d + 1))
+	done
+}
+
+
+# clock format: HH MM SS YYYY YY DD (MM is minutes next to hours/seconds,
+# month elsewhere). TI$ = the default. anything with % goes to date(1)
+volume() { v=$(c64-volume get 2>/dev/null); case "$v" in *MUTE) echo MUTE ;; '') echo "-" ;; *) echo "$v%" ;; esac; }
+
+clockfmt() {
+	f=$(cat "$C64PINE/config/c64/clock-format" 2>/dev/null)
+	case "$f" in ""|'TI$') echo 'TI$="%H%M%S"' ;; *%*) echo "$f" ;;
+	*) echo "$f" | sed 's/\([Hh][Hh]:\{0,1\}\)MM/\1%%M/g; s/MM\(:\{0,1\}[Ss][Ss]\)/%%M\1/g; s/YYYY/%Y/g; s/YY/%y/g;
+	                    s/MM/%m/g; s/DD/%d/g; s/[Hh][Hh]/%H/g; s/mm/%M/g; s/[Ss][Ss]/%S/g; s/%%M/%M/g' ;;
+	esac
+}
+P="c64-env c64desk --popup"
+i=0 lastmin=""
+while :; do
+	if [ $(( i % 4 )) -eq 0 ]; then
+		DATE="$(date '+%d %b' | tr '[:lower:]' '[:upper:]')"
+		CF=$(clockfmt)
+		VOL="%{A:$P volume &:}VOL $(volume)%{A}"
+		BAT=""
+		for b in /sys/class/power_supply/BAT*; do
+			[ -r "$b/capacity" ] || continue
+			BAT="%{A:$P power &:}BAT $(cat "$b/capacity")%$([ "$(cat "$b/status" 2>/dev/null)" = Charging ] && echo +)%{A}  "
+		done
+		[ -n "$BAT" ] || BAT="%{A:$P power &:}PWR%{A}  "
+		m=$(date '+%Y-%m-%d %H:%M')               # reminders
+		if [ "$m" != "$lastmin" ]; then
+			lastmin=$m
+			grep "^$m " "$C64PINE/config/c64/calendar" 2>/dev/null | cut -d' ' -f3- | while read -r e; do
+				c64desk --popup note "$e ($(date +%H:%M))" >/dev/null 2>&1 &
+			done
+		fi
+		NET=""                                  # NetworkManager
+		if command -v nmcli >/dev/null; then
+			n=$(nmcli -t -f TYPE,STATE,CONNECTION device 2>/dev/null | awk -F: '$2 == "connected" && $1 != "loopback" { print ($1 == "wifi" ? $3 : "LAN"); exit }')
+			NET="%{A:c64-term -e nmtui &:}NET $(echo "${n:-OFF}" | tr '[:lower:]' '[:upper:]')%{A}  "
+		else                                    # no NM, look at /sys
+			n=OFF
+			for d in /sys/class/net/*; do
+				[ "${d##*/}" = lo ] || [ "$(cat "$d/operstate" 2>/dev/null)" != up ] && continue
+				if [ -d "$d/wireless" ]; then n=$(iwgetid -r 2>/dev/null); n=${n:-WIFI}; break; fi
+				n=LAN
+			done
+			NET="NET $(echo "$n" | tr '[:lower:]' '[:upper:]')  "
+		fi
+	fi
+	REC=""
+	[ -f "$C64PINE/cache/c64/rec.pid" ] && kill -0 "$(cat "$C64PINE/cache/c64/rec.pid")" 2>/dev/null &&
+		REC="%{A:c64-record --stop &:}%{B#813338}%{F#ffffff} REC %{B-}%{F-}%{A}  "
+	i=$(( i + 1 ))
+	echo "%{l}%{A:c64-launch &:} LOAD\"*\",8,1 %{A}$(desks)$(tasks)%{r}$REC$NET$BAT$VOL  $DATE  %{A:$P clock &:}$(date "+$CF")%{A} "
+	sleep 0.5
+done | lemonbar -p -a 40 -g "$(( W - 2 * BX ))x$H+$BX+$Y" -f "Pet Me 64 2Y:pixelsize=$(( 8 * PX )):antialias=false" \
+-n bar -B"$BORDER" -F"$FG" | sh

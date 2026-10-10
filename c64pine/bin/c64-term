@@ -1,0 +1,5 @@
+#!/bin/sh
+# st, args are passed through
+[ $# -eq 0 ] && set -- -e c64-shell
+
+exec c64-env st "$@"

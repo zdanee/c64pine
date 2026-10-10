@@ -1,0 +1,12 @@
+#!/bin/sh
+: "${C64PINE:=$HOME/.c64pine}"
+# c64-crt [start]   toggle the CRT filter (= picom on/off)
+# c64desk draws its overlay by itself when a compositor is running
+
+STATE="$C64PINE/config/c64/crt"
+start() { pgrep -x picom >/dev/null || picom --config "$C64PINE/config/picom.conf" --log-level=warn --log-file="$C64PINE/cache/c64/picom.log" -b; }
+case "$1" in
+	start) start ;;
+	*) if pgrep -x picom >/dev/null; then pkill -x picom; echo off > "$STATE"
+	   else start; echo on > "$STATE"; fi ;;
+esac

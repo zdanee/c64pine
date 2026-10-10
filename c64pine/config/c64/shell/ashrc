@@ -1,0 +1,14 @@
+# for ash/dash, c64-shell points ENV here
+[ -n "${HOME:-}" ] && [ -f "$HOME/.ashrc" ] && . "$HOME/.ashrc"
+# READY. prompt, cwd goes into the title. \033[1 q = blinking block cursor
+export PS1="$(printf '\033]0;\\w\007\033[1 q')READY.
+"
+
+
+alias sys='vfetch'
+alias la='ls -la'
+alias list='ls -l'
+alias cls='clear'
+
+# banner, but not on the bare tty
+if [ -n "${DISPLAY:-}" ]; then c64-banner; fi

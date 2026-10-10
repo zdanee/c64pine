@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=MUSIC
+Comment=cmus in a C64-coloured terminal (c64-music)
+Exec=c64-music %F
+Icon=audio-x-generic
+NoDisplay=true
+MimeType=audio/mpeg;audio/ogg;audio/x-vorbis+ogg;audio/opus;audio/flac;audio/x-flac;audio/wav;audio/x-wav;audio/mp4;audio/aac;audio/x-mod;audio/x-xm;audio/x-it;audio/x-s3m;audio/prs.sid;

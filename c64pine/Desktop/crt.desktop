@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=CRT
+Exec=sh -c c64-crt
+Icon=crt
+X-C64-Order=100

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=FILES
+Exec=env GTK_THEME=c64 pcmanfm
+TryExec=pcmanfm
+Icon=floppy
+X-C64-Order=30

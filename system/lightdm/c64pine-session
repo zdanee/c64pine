@@ -1,0 +1,9 @@
+#!/bin/sh
+# runs the user's own ~/.c64pine/bin/c64-session
+# users without C64PINE get a message instead of a login loop
+S="$HOME/.c64pine/bin/c64-session"
+[ -x "$S" ] && exec "$S"
+msg="C64PINE is not installed for $(id -un). Log in to another session and run the C64PINE installer as this user."
+command -v xmessage >/dev/null && exec xmessage -center "$msg"
+echo "$msg" >&2
+exit 1

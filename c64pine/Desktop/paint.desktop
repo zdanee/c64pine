@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=PAINT
+Exec=gimp
+TryExec=gimp
+Icon=paint
+X-C64-Order=70

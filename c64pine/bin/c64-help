@@ -1,0 +1,8 @@
+#!/bin/sh
+: "${C64PINE:=$HOME/.c64pine}"
+# F1 - cheat sheet, F1 again closes it
+
+if pkill -f 'st -c st-help'; then
+	exit 0
+fi
+exec c64-env st -c st-help -g =70x41 -e less -~ "$C64PINE/config/help-${WM:-openbox}.txt"

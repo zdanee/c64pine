@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- the window menu (right-click a title bar); the desktop menu is c64desk's own (config/c64/menus) -->
+<openbox_menu xmlns="http://openbox.org/3.4/menu">
+<!-- the window menu (right-click a title bar or border): Openbox's own, plus LAYER > PIN -->
+<menu id="c64-window" label="WINDOW">
+  <menu id="c64-window-desktop" label="SEND TO DESKTOP">
+    <item label="DESKTOP 1"><action name="SendToDesktop"><to>1</to><follow>no</follow></action></item>
+    <item label="DESKTOP 2"><action name="SendToDesktop"><to>2</to><follow>no</follow></action></item>
+    <item label="DESKTOP 3"><action name="SendToDesktop"><to>3</to><follow>no</follow></action></item>
+    <item label="DESKTOP 4"><action name="SendToDesktop"><to>4</to><follow>no</follow></action></item>
+    <item label="DESKTOP 5"><action name="SendToDesktop"><to>5</to><follow>no</follow></action></item>
+    <item label="EVERY DESKTOP ON/OFF"><action name="ToggleOmnipresent"/></item>
+  </menu>
+  <menu id="c64-window-layer" label="LAYER">
+    <item label="ALWAYS ON TOP"><action name="SendToTopLayer"/></item>
+    <item label="NORMAL"><action name="SendToNormalLayer"/></item>
+    <item label="ALWAYS ON BOTTOM"><action name="SendToBottomLayer"/></item>
+    <separator/>
+    <item label="PIN (ON TOP, EVERY DESKTOP)"><action name="If"><omnipresent>no</omnipresent><then><action name="ToggleOmnipresent"/></then></action><action name="SendToTopLayer"/></item>
+    <item label="UNPIN"><action name="If"><omnipresent>yes</omnipresent><then><action name="ToggleOmnipresent"/></then></action><action name="SendToNormalLayer"/></item>
+  </menu>
+  <item label="MINIMIZE"><action name="Iconify"/></item>
+  <item label="MAXIMIZE / RESTORE"><action name="ToggleMaximize"/></item>
+  <item label="MOVE"><action name="Move"/></item>
+  <item label="RESIZE"><action name="Resize"/></item>
+  <item label="ROLL UP / DOWN"><action name="ToggleShade"/></item>
+  <item label="DECORATIONS ON/OFF"><action name="ToggleDecorations"/></item>
+  <separator/>
+  <item label="CLOSE"><action name="If"><query target="default"><class>X64sc</class><type>normal</type></query><then><action name="Execute"><command>c64desk --c64 hide</command></action></then><else><action name="Close"/></else></action></item>
+</menu>
+<!-- (the desktop menu is c64desk's own: ~/.c64pine/config/c64/menus, the MENUS app) -->
+</openbox_menu>

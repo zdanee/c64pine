@@ -1,0 +1,10 @@
+#!/bin/sh
+# power-on banner with real RAM numbers
+
+rel=$(cut -d. -f1,2 /etc/alpine-release 2>/dev/null)
+if [ -n "$rel" ]; then t="C64PINE ON ALPINE LINUX $rel"
+else
+	t=$( . /etc/os-release 2>/dev/null; echo "C64PINE ON ${ID:-LINUX} ${VERSION_ID%%.*}" | tr a-z A-Z | sed 's/ *$//')
+fi
+awk -v t="$t" '/^MemTotal:/ { m = $2 } /^MemAvailable:/ { a = $2 }
+	END { printf "\n    **** %s ****\n\n %dM RAM SYSTEM  %.0f BASIC BYTES FREE\n\n", t, (m + 512) / 1024, a * 1024 }' /proc/meminfo

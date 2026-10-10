@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=HELP
+Exec=sh -c c64-help
+Icon=help
+X-C64-Order=110

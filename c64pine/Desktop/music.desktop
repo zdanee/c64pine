@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=MUSIC
+Exec=sh -c c64-music
+TryExec=cmus
+Icon=music
+X-C64-Order=72

@@ -1,0 +1,246 @@
+    **** C64PINE - HELP (LAPTOP) ****
+(space/arrows scroll, q or F1 closes)
+
+LOGIN
+  Your user and password are the ones given to the installer.
+  doas asks for that password (except power off, reboot, sleep).
+
+LAPTOP
+  NETWORK icon, the bar's NET button   wifi / LAN (nmtui: pick
+                         "Activate a connection", choose the
+                         network, type the password)
+  BLUETOOTH icon         bluetuith: scan, pair, connect (headsets
+                         play through PipeWire)
+  CAMERA icon            guvcview: webcam picture + mic level
+  menu: DISPLAYS         arandr for HDMI / VGA (mirror or extend)
+  menu: VIDEO PLAYER     mpv (drop a file on it)
+  brightness keys        brightnessctl, volume keys: amixer
+  lid closed / sleep key suspend (also menu: SLEEP)
+  power button           power off
+  bar                    NET <wifi name>|LAN|OFF, BAT 87% (+ =
+                         charging), VOL, date, TI$
+
+THE DESKTOP  (= the folder ~/.c64pine/Desktop)
+  icons            double-click: open   drag: move (16 px grid)
+                   drag onto a folder: put it inside
+                   right-click: open, rename, change icon, edit
+                   icon, edit command, remove / move to trash
+  empty desktop    right-click: new shortcut (a command or a file
+                   path), new folder, new text file, icon editor,
+                   line up icons, C64 screen, wallpaper,
+                   programs menu
+                   middle-click: window list
+  files dropped from the file manager become shortcuts; dropped
+  onto a folder icon they are copied into it.
+  FOLDERS          double-click: a folder window with the same
+                   icons (classic Mac style: one window per
+                   folder, it remembers its place and icons).
+                   Drag icons between it and the desktop or
+                   other folder windows. Esc closes, Backspace
+                   opens the enclosing folder, the wheel scrolls.
+                   Right-click a folder: OPEN IN FILE MANAGER.
+  C64 LIBRARY      a folder with C64 software (d64 t64 prg tap
+                   crt ...) opens as a cover view: arrows / wheel
+                   browse, Return = RUN; SEARCH opens a web page
+                   about it, SCRAPE looks it up again (Wikipedia),
+                   SET = your own title, year, author, text,
+                   cover, screenshot; ICONS = the normal view.
+                   (Data: the hidden file .cdb in the folder.)
+  C64.SAV          the desktop's BASIC program as a text listing,
+                   saved whenever BASIC is back at READY. (not
+                   LOADed programs); it comes back when the C64
+                   starts (after a reboot, SYS 64738) or with
+                   LOAD"C64.SAV". Double-click (any .sav file,
+                   or LOAD"NAME.SAV"): into the desktop's C64;
+                   right-click: READ LISTING.
+  ICON EDITOR      24x21 pixels, 12 pens; left button paints,
+                   right erases; 0-9 a b pick a pen; ctrl+s saves
+  C64 DISK         the folder ~/c64 = drive 8 of the desktop's C64
+
+THE COMMAND LINE  (click the desktop and type, Return runs it)
+  A line is tried in this order:
+  1. the desktop:  LOAD"ICON"[,8,1] opens an icon (LOAD"TERM*")
+                   POKE 53280,N / 53281,N / 646,N   border, screen,
+                   text colour (N = 0..15; 14 / 6 / 14 = original)
+                   SYS 64738 reset   CLS (ctrl+l) clear   CD DIR
+                   SCREEN  show the C64's screen
+  2. the shell, if the first word is a program:
+                   ls, cat, df, ping, ... print here; type a line
+                   while one runs and it goes to the program
+                   mc, htop, vim, less, ... open a terminal window
+                   graphical programs just start
+  3. C64 BASIC (a real C64 in VICE, hidden): everything else,
+     lines starting with a number, and upper-case keywords:
+                   10 PRINT "HELLO"   20 GOTO 10   RUN   LIST
+                   PRINT 2+2   SAVE"NAME",8   LOAD"$",8
+     Its output appears here, in colour; programs with graphics
+     (sprites, POKEs to the screen, cursor moves) also open the
+     "C64 SCREEN" window (type into it for GET).
+     The C64 runs at its real speed and only while BASIC works:
+     at READY. it is stopped (no CPU), after 10 idle minutes it
+     is unloaded (~260 MB back) and restored, memory and all,
+     with the next line. ~/.c64pine/config/c64/vice-unload = seconds
+     (0 = never). Its sound is only switched on for programs
+     that may use the SID.
+  Esc / ctrl+c = RUN/STOP (interrupts a program or a command)
+  up / down = earlier lines
+
+INSTALLER ISO  (menu: MAKE INSTALLER ISO, or in a terminal)
+  make-installer-iso [--out FILE] [--usb] [--serve]
+  Builds the C64PINE installer ISO from this system, desktop
+  and home included, ready for a real PC (kernel, firmware, wifi,
+  bluetooth, sound). Needs the network, ~3.5 GB free, ~15 min.
+  --serve   prints a curl command to fetch it from the host
+  --usb     writes it to a USB stick (pass one in with the
+            viewer's USB menu)
+
+CRT FILTER
+  alt+F12, the CRT icon or the menu toggle it (remembered).
+  On: scanlines, vignette and round corners over the whole
+  screen (picom composites; costs some CPU in software).
+  Off: the filter is only baked into the desktop picture.
+
+WINDOWS  (mouse)
+  titlebar         drag: move   double-click: maximize
+                   right-click: window menu (desktop, layer, ...)
+  pin (top left)   PIN: always on top and on every desktop
+                   (filled while pinned); click again to unpin.
+                   Window menu > LAYER has PIN / UNPIN too.
+  [_]              minimize (click its button in the bar to
+                   bring the window back)
+  [■] / [restore]  maximize / restore   (middle-click: vertical
+                   only, right-click: horizontal only)
+  [X]              close
+  borders, corners drag to resize
+  alt + left-drag  move a window from anywhere in it
+  alt + right-drag resize a window from anywhere in it
+  alt + middle     send the window to the bottom
+  Maximized windows fill the blue screen, not the border.
+
+KEYS  (alt = Alt key)
+  F1                 this help (F1 again closes it)
+  alt+Return         terminal
+  alt+space          menu (type, Enter)
+  alt+F12            CRT filter on/off
+  alt+q              close window
+  alt+Tab            next window (alt+shift+Tab: previous)
+  super+left/right   left / right half of the blue screen; again:
+                     half of the whole screen (below the bar,
+                     4 px from the edges)
+  super+up           maximize; again: the whole screen
+  super+down         back to the size before
+  alt+h / alt+l      left / right half of the screen
+  alt+k / alt+j      top / bottom half of the screen
+  alt+m              maximize / restore
+  alt+f              fullscreen
+  alt+i              minimize
+  alt+c              center the window
+  alt+d              show the desktop
+  alt+1..5           desktop 1-5 (+shift: send the window there)
+  alt+ctrl+s         screenshot into ~/ss
+  alt+ctrl+r         record the display on/off (~/rec)
+  alt+ctrl+w         next wallpaper of the slideshow
+  alt+ctrl+Esc       quit the desktop
+
+TOP BAR  (in the border)
+  LOAD"*",8,1        application menu (same as alt+space)
+  ■▪▪▪▪              the 5 desktops: ■ = where you are, click one
+                     to go there
+  window buttons     click: raise / restore that window, even on
+                     another workspace (reverse = focused,
+                     grey = minimized or on another workspace)
+  TI$="HHMMSS"       the clock, as the C64's TI$ variable; click:
+                     calendar with appointments, meetings, events
+                     and alarms (a reminder pops up when due),
+                     FORMAT (HH:MM, YYYY-MM-DD HH:MM:SS, TI$ ...),
+                     SET TIME, NTP SYNC
+  VOL                click: volume slider (wheel, arrows), MUTE
+  BAT / PWR          click: battery, power settings this PC has
+                     (CPU speed, turbo, profile), SLEEP, RESTART,
+                     SHUT DOWN (click twice)
+  The bar gets out of the way: when a window reaches into its
+  row it moves up to the top edge. The strip above it stays free:
+  a window moved or resized into it drops back below it when you
+  let go of the mouse. Fullscreen (F11, video, games) is exempt.
+
+TERMINAL
+  Every terminal greets you with the power-on message; the
+  prompt is READY. on its own line (the working directory is
+  in the window title). `sys` still shows vfetch.
+
+C64 EMULATOR  (C64 icon, LOAD"C64", or the menu)
+  VICE 3.10 (x64sc, cycle-exact C64) with the original Commodore
+  ROMs that VICE ships, Colodore palette.
+  double-click a .d64 .t64 .prg .c64 .tap .crt (.d71 .d81 .g64)
+                         on the desktop, in a folder window or in
+                         the file manager: VICE loads and RUNs it
+  joystick               port 1 = the arrow keys, fire = right
+                         Ctrl (most games read port 2: VICE's
+                         settings, Input devices > Joystick)
+  File > Smart attach    load a .d64/.prg/.t64/.crt
+  alt+d  fullscreen      alt+w  warp (fast forward)
+  Type unshifted: the C64 shows capitals; shifted letters are the
+  PETSCII graphics, as on the real keyboard.
+  Settings: ~/.config/vice/vicerc
+
+MEDIA
+  MUSIC icon         cmus: 1-7 views (5 = files, 7 = keys)
+                     c / v / x  pause / stop / play, b next,
+                     z previous, +/- volume; audio files open in
+                     it, SID tunes in VICE's vsid
+  VIDEO icon         mpv: space pause, f fullscreen, arrows seek,
+                     9 / 0 volume, q quit; video files open in it
+  pictures           nsxiv: space / backspace next / previous,
+                     Return thumbnails, ctrl+x w = wallpaper
+  PDF files          zathura: j / k scroll, J / K page, / search,
+                     ctrl+r pages in the desktop colours
+  RECORD DISPLAY     alt+ctrl+r (or the menu): the screen + the
+                     sound into ~/rec/DATE.mkv; REC in the bar,
+                     click it (or alt+ctrl+r) to stop. The menu
+                     also has "+ MIC" (with the microphone).
+
+ARCHIVES  (zip, rar, 7z, arj, lzh, cab, tar.gz/bz2/xz/zst ...)
+  double-click     extracts it next to itself (into a folder
+                   named after it)
+  right-click      EXTRACT HERE, LIST CONTENTS, OPEN IN
+                   ARCHIVER (xarchiver); any file or folder:
+                   COMPRESS... as ZIP, 7Z, TAR.GZ or TAR.XZ
+                   (the archiver cannot open RAR and ARJ)
+  file manager     right-click: Compress / Extract here
+  terminal         c64-archive x FILE | l FILE |
+                   c zip|7z|tgz|txz ITEMS; or 7z, zip, unzip,
+                   bsdtar (reads RAR), lha, cabextract
+  RAR and ARJ can be extracted, not created (no free packers);
+  encrypted RAR files cannot be opened.
+
+WALLPAPER  (right-click the desktop: WALLPAPER...)
+  A picture in the blue screen, the C64 way: 320x200 pixels in
+  the 16 C64 colours (dithered), scanlines over it.
+  picture icons    right-click: SET AS WALLPAPER
+  folder icons     right-click: WALLPAPER SLIDESHOW
+  border           AUTO (the picture's edge colour), KEEP (the
+                   desktop's own) or one of the 16 colours
+  slideshow        every N minutes; alt+ctrl+w: next picture
+  In a terminal: c64-wallpaper set FILE | slideshow DIR N |
+  next | border auto|keep|0-15 | dither on|off | off
+
+FILES
+  FILES icon / "file manager"      PCManFM (graphical)
+  DRIVE 8 icon                     mc
+
+DISPLAY  (alt+space, "resolution switch"; menu: DISPLAYS)
+  resolution   presets or your own WxH for the built-in screen
+  scale        UI scale 50-400% (100/200/300 are pixel-perfect)
+  External screens: DISPLAYS (arandr), then the border and icons
+  follow the new size.
+
+DOAS
+  doas <command>     run a command as root (asks your password)
+
+APK  (package manager)
+  apk search <word>  search packages (no doas needed)
+  doas apk add <pkg> install a package
+  doas apk del <pkg> remove a package
+
+Font: Pet Me 64 by Kreative Software (free-use licence,
+/usr/local/share/fonts/petme). Colours: "Colodore" palette.

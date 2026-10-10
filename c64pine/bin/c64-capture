@@ -1,0 +1,48 @@
+#!/bin/sh
+# usage:
+#   c64-capture              menu
+#   c64-capture shot         whole screen -> ~/.c64pine/ss
+#   c64-capture window       active window
+#   c64-capture area         drag a rectangle
+#   c64-capture video | video-mic | gif | webp     -> ~/.c64pine/rec
+#   c64-capture stop
+#   c64-capture folder
+: "${C64PINE:=$HOME/.c64pine}"
+[ -f "$C64PINE/config/scale.env" ] && . "$C64PINE/config/scale.env"
+SS="$C64PINE/ss"
+mkdir -p "$SS" "$C64PINE/rec"
+note() { c64desk --popup note --title CAPTURE --timeout 5 "$1" >/dev/null 2>&1 & }
+shot() {   # scrot options
+	f="$SS/$(date +%Y-%m-%d-%H-%M-%S).png"
+	scrot "$@" "$f" 2>/dev/null && note "SAVED: SS/$(basename "$f" | tr a-z A-Z)"
+}
+what=${1:-}
+if [ -z "$what" ]; then
+	if c64-record --status; then L="STOP RECORDING"; else L="SCREENSHOT
+SCREENSHOT OF A WINDOW
+SCREENSHOT OF AN AREA
+RECORD VIDEO
+RECORD VIDEO + MIC
+RECORD ANIMATED GIF
+RECORD ANIMATED WEBP"; fi
+	c=$(printf '%s\nOPEN THE CAPTURE FOLDERS\n' "$L" | dmenu -i -l 10 -z $(( 400 * ${SCALE_PCT:-100} / 100 )) -p 'CAPTURE') || exit 0
+	case "$c" in
+		"SCREENSHOT") what=shot ;; "SCREENSHOT OF A WINDOW") what=window ;; "SCREENSHOT OF AN AREA") what=area ;;
+		"RECORD VIDEO") what=video ;; "RECORD VIDEO + MIC") what=video-mic ;;
+		"RECORD ANIMATED GIF") what=gif ;; "RECORD ANIMATED WEBP") what=webp ;;
+		"STOP RECORDING") what=stop ;; "OPEN THE CAPTURE FOLDERS") what=folder ;; *) exit 0 ;;
+	esac
+	sleep 0.4                                  # let dmenu disappear first
+fi
+case "$what" in
+	shot) shot ;;
+	window) shot -u -b ;;
+	area) shot -s -f ;;
+	video) c64-record --status && exit 0; c64-record ;;
+	video-mic) c64-record --status && exit 0; c64-record --mic ;;
+	gif) c64-record --status && exit 0; c64-record --gif ;;
+	webp) c64-record --status && exit 0; c64-record --webp ;;
+	stop) c64-record --stop ;;
+	folder) env GTK_THEME=c64 pcmanfm "$SS" & env GTK_THEME=c64 pcmanfm "$C64PINE/rec" & ;;
+	*) sed -n '2,9s/^# //p' "$0" >&2; exit 1 ;;
+esac

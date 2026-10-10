@@ -1,0 +1,6 @@
+# C64PINE terminals with bash: your ~/.bashrc first, then the C64 prompt (c64-shell)
+[ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"
+PS1='\[\e]0;\w\a\e[1 q\]READY.\n'
+PROMPT_COMMAND=
+alias sys='vfetch' la='ls -la' list='ls -l' cls='clear'
+c64-banner

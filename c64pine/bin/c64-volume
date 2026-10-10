@@ -1,0 +1,29 @@
+#!/bin/sh
+# c64-volume get | set PCT | mute | unmute | toggle
+# wpctl, pactl or amixer, whichever works. get prints "40" or "40 MUTE"
+
+if command -v wpctl >/dev/null 2>&1 && wpctl get-volume @DEFAULT_AUDIO_SINK@ >/dev/null 2>&1; then
+	case "${1:-get}" in
+		get) wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk '{ printf "%d%s\n", $2 * 100 + 0.5, /MUTED/ ? " MUTE" : "" }' ;;
+		set) wpctl set-volume @DEFAULT_AUDIO_SINK@ "$2%" && wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 ;;
+		mute) wpctl set-mute @DEFAULT_AUDIO_SINK@ 1 ;;
+		unmute) wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 ;;
+		toggle) wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle ;;
+	esac
+elif command -v pactl >/dev/null 2>&1 && pactl get-sink-volume @DEFAULT_SINK@ >/dev/null 2>&1; then
+	case "${1:-get}" in
+		get) v=$(pactl get-sink-volume @DEFAULT_SINK@ | grep -oE '[0-9]+%' | head -1 | tr -d %)
+			[ "$(pactl get-sink-mute @DEFAULT_SINK@ | awk '{print $2}')" = yes ] && echo "$v MUTE" || echo "$v" ;;
+		set) pactl set-sink-volume @DEFAULT_SINK@ "$2%" && pactl set-sink-mute @DEFAULT_SINK@ 0 ;;
+		mute) pactl set-sink-mute @DEFAULT_SINK@ 1 ;;
+		unmute) pactl set-sink-mute @DEFAULT_SINK@ 0 ;;
+		toggle) pactl set-sink-mute @DEFAULT_SINK@ toggle ;;
+	esac
+else
+	case "${1:-get}" in
+		get) amixer sget Master 2>/dev/null | awk -F'[][]' '/%/ { printf "%d%s\n", $2, $4 == "off" ? " MUTE" : ""; exit }' ;;
+		set) amixer -q sset Master "$2%" unmute ;;
+		mute|unmute) amixer -q sset Master "$1" ;;
+		toggle) amixer -q sset Master toggle ;;
+	esac
+fi

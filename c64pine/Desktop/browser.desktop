@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=BROWSER
+Exec=c64-browser
+X-C64-TryExec=librewolf firefox firefox-esr chromium chromium-browser falkon epiphany-browser
+Icon=globe
+X-C64-Order=40

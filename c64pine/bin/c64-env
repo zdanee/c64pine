@@ -1,0 +1,6 @@
+#!/bin/sh
+: "${C64PINE:=$HOME/.c64pine}"
+# run something with the current scale env (GDK_SCALE...)
+
+[ -f "$C64PINE/config/scale.env" ] && . "$C64PINE/config/scale.env"
+exec "$@"

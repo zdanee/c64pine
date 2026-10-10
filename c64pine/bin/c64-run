@@ -1,0 +1,11 @@
+#!/bin/sh
+# c64-run [FILE]  - autostart in the desktop's VICE. no FILE = just show it
+# outside the C64PINE session we start a plain x64sc
+
+if [ $# -gt 0 ]; then
+	f=$(realpath "$1") || exit 1
+	c64desk --c64 run "$f" 2>/dev/null && exit 0
+	exec env GTK_THEME=c64 x64sc -autostart "$f"
+fi
+c64desk --c64 show 2>/dev/null && exit 0
+exec env GTK_THEME=c64 x64sc

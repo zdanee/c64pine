@@ -1,0 +1,93 @@
+/* (template: c64-colors renders gtk.css from it with the desktop colours)
+   "c64": a flat GTK3 theme in the C64 screen colours + Pet Me 64 2Y.
+   Only in the C64PINE session: c64-session exports GTK_THEME=c64. */
+@import url("resource:///org/gtk/libgtk/theme/Adwaita.css");
+
+@define-color theme_bg_color @SCREEN@;
+@define-color theme_fg_color @TEXT@;
+@define-color theme_base_color @SCREEN@;
+@define-color theme_text_color @TEXT@;
+@define-color theme_selected_bg_color @TEXT@;
+@define-color theme_selected_fg_color @SCREEN@;
+@define-color theme_unfocused_bg_color @SCREEN@;
+@define-color theme_unfocused_fg_color @TEXT@;
+@define-color theme_unfocused_base_color @SCREEN@;
+@define-color theme_unfocused_text_color @TEXT@;
+@define-color theme_unfocused_selected_bg_color @TEXT@;
+@define-color theme_unfocused_selected_fg_color @TEXT@;
+@define-color insensitive_bg_color @SCREEN@;
+@define-color insensitive_fg_color #7b7b7b;
+@define-color borders @TEXT@;
+@define-color unfocused_borders @TEXT@;
+
+* {
+	font-family: "Pet Me 64 2Y";
+	font-size: 12pt;
+	border-radius: 0;
+	box-shadow: none;
+	text-shadow: none;
+	-gtk-icon-shadow: none;
+}
+
+decoration { box-shadow: none; margin: 0; border: none; }
+
+window, dialog, .background, headerbar, toolbar, .toolbar, statusbar, paned, box, grid {
+	background-color: @SCREEN@;
+	background-image: none;
+	color: @TEXT@;
+}
+
+button {
+	background-image: none;
+	background-color: @SCREEN@;
+	color: @TEXT@;
+	border: 2px solid @TEXT@;
+	padding: 2px 8px;
+}
+button:hover { background-color: @HOVER@; }
+button:active, button:checked { background-color: @TEXT@; color: @SCREEN@; }
+button:disabled { color: #7b7b7b; border-color: @TEXT@; }
+toolbar button, .toolbar button { border-color: transparent; }
+toolbar button:hover, .toolbar button:hover { border-color: @TEXT@; }
+
+entry, spinbutton {
+	background-image: none;
+	background-color: @SCREEN@;
+	color: @TEXT@;
+	border: 2px solid @TEXT@;
+	padding: 2px 4px;
+}
+entry:focus, spinbutton:focus { border-color: @TEXT@; }
+entry selection, label selection { background-color: @TEXT@; color: @SCREEN@; }
+
+.view, treeview.view, iconview, textview text, list, row {
+	background-color: @SCREEN@;
+	color: @TEXT@;
+}
+.view:selected, treeview.view:selected, iconview:selected, row:selected, .view:selected:focus {
+	background-color: @TEXT@;
+	color: @SCREEN@;
+}
+treeview.view:hover, row:hover { background-color: @HOVER@; }
+treeview header button { border-width: 0 0 2px 0; border-color: @TEXT@; }
+
+scrollbar, scrollbar trough { background-color: @SCREEN@; border: none; }
+scrollbar slider { background-color: @TEXT@; min-width: 10px; min-height: 10px; border: none; }
+scrollbar slider:hover { background-color: @TEXT@; }
+
+menu, .menu, .popup, popover, tooltip {
+	background-color: @SCREEN@;
+	color: @TEXT@;
+	border: 2px solid @TEXT@;
+}
+menuitem:hover, modelbutton:hover { background-color: @TEXT@; color: @SCREEN@; }
+separator { background-color: @TEXT@; }
+
+paned > separator { background-color: @TEXT@; }
+notebook > header { background-color: @SCREEN@; border-color: @TEXT@; }
+notebook > header tab:checked { background-color: @TEXT@; color: @SCREEN@; }
+
+menubar { background-color: @SCREEN@; border-bottom: 2px solid @TEXT@; }
+menubar > menuitem { padding: 2px 10px; }
+menubar > menuitem:hover { background-color: @TEXT@; color: @SCREEN@; }
+menu menuitem { padding: 2px 10px; }

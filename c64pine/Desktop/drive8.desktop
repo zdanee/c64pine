@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=DRIVE 8
+Exec=sh -c "c64-term -e mc"
+TryExec=mc
+Icon=drive
+X-C64-Order=90

@@ -1,0 +1,104 @@
+#!/bin/sh
+: "${C64PINE:=$HOME/.c64pine}"
+# resolution + UI scale
+#   c64-display [--set-res WxH | --set-scale PCT | --restore | --wm]
+CONF="$C64PINE/config/scale.env"
+[ -f "$CONF" ] && . "$CONF"
+SCALE_PCT=${SCALE_PCT:-100}
+
+px() { echo $(( ($1 * SCALE_PCT + 50) / 100 )); }
+output() { xrandr | awk '/ connected/ { print $1; exit }'; }
+current() { xrandr | sed -n 's/.*current \([0-9]*\) x \([0-9]*\),.*/\1x\2/p'; }
+menu() { dmenu -i -z "$(px 350)" -l 10 -p "$1 "; }
+say() { echo "$1" | menu "$2" >/dev/null; }
+
+apply_dpi() { echo "Xft.dpi: $(( 96 * SCALE_PCT / 100 ))" | xrdb -merge; }
+
+
+wm_geometry() {   # $1 = restart
+	# openbox ignores Xft.dpi, so we change the font size in rc.xml and
+	# pick the nearest theme variant (1x 2x 3x bitmaps)
+	n=$(( (SCALE_PCT + 50) / 100 )); [ "$n" -lt 1 ] && n=1; [ "$n" -gt 3 ] && n=3
+	sz=$(( (12 * SCALE_PCT + 50) / 100 ))
+	sed -i -e "s|<name>c64-[0-9]x</name>|<name>c64-${n}x</name>|" -e "s|<size>[0-9]*</size>|<size>${sz}</size>|g" "$C64PINE/config/openbox/rc.xml"
+	if pgrep -x openbox >/dev/null; then if [ "$1" = restart ]; then openbox --restart; else openbox --reconfigure; fi; fi
+}
+
+restart_bar() {
+	pkill -HUP -x c64desk; :
+}
+
+set_res() {
+	case "$1" in [0-9]*x[0-9]*) ;; *) return 1 ;; esac
+	w=${1%x*}; h=${1#*x}
+	{ [ "$w" -ge 320 ] && [ "$w" -le 8192 ] && [ "$h" -ge 200 ] && [ "$h" -le 8192 ]; } 2>/dev/null || return 1
+	o=$(output); m="${w}x${h}"
+	if ! xrandr | grep -q "^ *$m "; then
+		line=$(cvt "$w" "$h" | sed -n 's/^Modeline "[^"]*" *//p')
+		[ -n "$line" ] || return 1
+		xrandr --newmode "$m" $line && xrandr --addmode "$o" "$m" || return 1
+	fi
+	xrandr --output "$o" --mode "$m" || return 1
+	:   # c64desk notices the new size itself
+	wm_geometry
+	restart_bar
+}
+
+set_scale() {
+	case "$1" in ''|*[!0-9]*) return 1 ;; esac
+	{ [ "$1" -ge 50 ] && [ "$1" -le 400 ]; } || return 1
+	SCALE_PCT=$1
+	n=$(( SCALE_PCT / 100 )); [ "$n" -lt 1 ] && n=1
+	# gtk: integer part -> GDK_SCALE, the fraction goes through Xft.dpi
+	cat > "$CONF" <<EOT
+SCALE_PCT=$SCALE_PCT
+export GDK_SCALE=$n
+export GDK_DPI_SCALE=$(awk -v n="$n" 'BEGIN { printf "%.3f", 1 / n }')
+EOT
+	apply_dpi; wm_geometry restart; restart_bar
+}
+
+apply_res() {
+	r=$(echo "${1%% *}" | tr 'X' 'x' | tr -d ' ')
+	set_res "$r" || say "could not set '$r'" "error"
+}
+
+pick_res() {
+	a=$(printf '%s\n' "4:3" "16:9" "16:10" "ultrawide" "custom" | menu "aspect") || return
+	case "$a" in
+		4:3)  list="800x600\n1024x768\n1280x960\n1400x1050\n1600x1200\n1920x1440\n2048x1536" ;;
+		16:9) list="1280x720\n1366x768\n1600x900\n1920x1080\n2560x1440\n3200x1800\n3840x2160" ;;
+		16:10) list="1280x800\n1440x900\n1680x1050\n1920x1200\n2560x1600\n2880x1800\n3840x2400" ;;
+		ultrawide) list="2560x1080  21:9\n3440x1440  21:9\n3840x1600  21:9\n5120x2160  21:9\n3840x1080  32:9\n5120x1440  32:9" ;;
+		custom) r=$(menu "WxH" </dev/null) || return; apply_res "$r"; return ;;
+		*) return ;;
+	esac
+	r=$(printf "$list\n" | menu "$a") || return
+	apply_res "$r"
+}
+
+pick_scale() {
+	s=$(printf '%s\n' "100% pixel-perfect" "125%" "150%" "175%" "200% pixel-perfect" "250%" "300% pixel-perfect" "custom" \
+		| menu "scale") || return
+	case "$s" in
+		custom) s=$(menu "percent 50-400" </dev/null) || return ;;
+	esac
+	s=${s%%%*}
+	set_scale "$s" || say "could not set '$s' (use 50-400)" "error"
+}
+
+main() {
+	c=$(printf '%s\n' "resolution" "scale (dpi)" | menu "display $(current) @ ${SCALE_PCT}%") || exit 0
+	case "$c" in
+		resolution) pick_res ;;
+		scale*) pick_scale ;;
+	esac
+}
+
+case "$1" in
+	--set-res) set_res "$2" ;;
+	--set-scale) set_scale "$2" ;;
+	--restore) apply_dpi ;;
+	--wm) wm_geometry ;;
+	*) main ;;
+esac

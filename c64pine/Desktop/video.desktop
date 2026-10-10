@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=VIDEO
+Exec=mpv --player-operation-mode=pseudo-gui
+TryExec=mpv
+Icon=video
+X-C64-Order=74

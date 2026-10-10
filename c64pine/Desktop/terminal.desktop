@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=TERMINAL
+Exec=sh -c c64-term
+Icon=terminal
+X-C64-Order=10

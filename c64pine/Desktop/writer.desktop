@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=WRITER
+Exec=abiword
+TryExec=abiword
+Icon=writer
+X-C64-Order=50

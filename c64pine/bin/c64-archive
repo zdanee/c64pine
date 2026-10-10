@@ -1,0 +1,106 @@
+#!/bin/sh
+# c64-archive x FILE...               extract into a folder named after it
+#                                     (no extra folder if there's only one thing inside)
+# c64-archive l FILE                  list
+# c64-archive c zip|7z|tgz|txz ITEM...  pack
+#
+# reads zip 7z rar arj lzh cab iso tar.*, single .gz/.bz2/.xz/.zst/.lz
+# writes zip 7z tar.gz tar.xz  (no free packer for rar/arj)
+#
+
+if [ "${1:-}" != --run ]; then
+	[ $# -ge 2 ] || { sed -n '2,9p' "$0"; exit 1; }
+	exec c64-term -c ARCHIVE -t ARCHIVE -g 72x16 -e sh "$0" --run "$@"
+fi
+shift
+op=$1; shift
+
+lc() { echo "$1" | tr '[:upper:]' '[:lower:]'; }
+base() {        # strip archive extension(s)
+	b=${1##*/}
+	case "$(lc "$b")" in
+		*.tar.gz|*.tar.bz2|*.tar.xz|*.tar.zst|*.tar.lz) b=${b%.*}; b=${b%.*} ;;
+		*.*) b=${b%.*} ;;
+	esac
+	echo "$b"
+}
+unique() {      # DIR NAME -> DIR/NAME or DIR/NAME 2 ...
+	n=$2; k=2
+	while [ -e "$1/$n" ] || [ -L "$1/$n" ]; do
+		case "$2" in ?*.*) n="${2%.*} $k.${2##*.}" ;; *) n="$2 $k" ;; esac
+		k=$((k + 1))
+	done
+	echo "$1/$n"
+}
+unpack() {
+	case "$(lc "$1")" in
+		*.rar|*.tar|*.tar.gz|*.tgz|*.tar.bz2|*.tbz|*.tbz2|*.tar.xz|*.txz|*.tar.zst|*.tzst|*.tar.lz|*.cpio|*.xar)
+			bsdtar -x -v -f "$1" -C "$2" ;;
+		*.lzh|*.lha)
+			7zz x -bb1 -o"$2" "$1" || (cd "$2" && lha xv "$1") ;;
+		*.cab)
+			7zz x -bb1 -o"$2" "$1" || cabextract -d "$2" "$1" ;;
+		*)
+			7zz x -bb1 -o"$2" "$1" || bsdtar -x -v -f "$1" -C "$2" ;;
+	esac
+}
+fail() { printf '\n?%s  ERROR\nPRESS RETURN\n' "$1"; read -r _; exit 1; }
+
+case "$op" in
+x)
+	for f; do
+		f=$(realpath "$f") || continue
+		d=${f%/*}
+		echo "SEARCHING FOR $(lc "${f##*/}" | tr '[:lower:]' '[:upper:]')"
+		echo "LOADING"
+		case "$(lc "$f")" in            # plain compressed file, not an archive
+			*.tar.*) ;;
+			*.gz|*.bz2|*.xz|*.zst|*.lz)
+				o=$(unique "$d" "$(base "$f")")
+				case "$(lc "$f")" in
+					*.gz) gzip -dc "$f" ;; *.bz2) bzip2 -dc "$f" ;; *.xz) xz -dc "$f" ;;
+					*.zst) zstd -dc "$f" ;; *.lz) lzip -dc "$f" ;;
+				esac > "$o" || { rm -f "$o"; fail "EXTRACT"; }
+				echo "${o##*/}"
+				continue ;;
+		esac
+		tmp=$(mktemp -d "$d/.extract.XXXXXX") || fail "WRITE"
+		if ! unpack "$f" "$tmp"; then rm -rf "$tmp"; fail "EXTRACT"; fi
+		set -- "$tmp"/* "$tmp"/.[!.]*
+		n=0; for e; do [ -e "$e" ] && n=$((n + 1)) && one=$e; done
+		if [ $n = 1 ]; then
+			o=$(unique "$d" "${one##*/}"); mv "$one" "$o"; rmdir "$tmp"
+		else
+			o=$(unique "$d" "$(base "$f")"); mv "$tmp" "$o"
+		fi
+		echo "-> ${o##*/}"
+	done ;;
+l)
+	case "$(lc "$1")" in
+		*.rar|*.tar*|*.tgz|*.tbz*|*.txz|*.tzst) bsdtar -t -v -f "$1" ;;
+		*) 7zz l "$1" ;;
+	esac | less
+	exit 0 ;;
+c)
+	fmt=$1; shift
+	[ $# -ge 1 ] || fail "NOTHING TO PACK"
+	d=$(dirname "$(realpath "$1")")
+	if [ $# = 1 ]; then name=$(basename "$1"); else name=ARCHIVE; fi
+	case "$fmt" in zip) ext=zip ;; 7z) ext=7z ;; tgz) ext=tar.gz ;; txz) ext=tar.xz ;; *) fail "FORMAT" ;; esac
+	o=$(unique "$d" "$name.$ext")
+	echo "SAVING \"$(echo "${o##*/}" | tr '[:lower:]' '[:upper:]')\""
+	cd "$d" || fail "FOLDER"
+	lst=$(mktemp)                       # file list, so spaces are ok
+	for i; do basename -- "$i"; done > "$lst"
+	case "$fmt" in
+		zip) zip -r -y "$o" -@ < "$lst" >/dev/null && packed=1 ;;
+		7z) 7zz a -bb1 "$o" @"$lst" && packed=1 ;;
+		tgz) bsdtar -c -z -v -f "$o" -T "$lst" && packed=1 ;;
+		txz) bsdtar -c -J -v -f "$o" -T "$lst" && packed=1 ;;
+	esac
+	rm -f "$lst"
+	[ "${packed:-}" = 1 ] || { rm -f "$o"; fail "SAVE"; } ;;
+*) fail "SYNTAX" ;;
+esac
+echo; echo "READY."
+sleep 1

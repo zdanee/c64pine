@@ -1,0 +1,33 @@
+#!/bin/sh
+# root helper for the bar popups (doas nopass for wheel)
+#   c64-sys time "YYYY-MM-DD HH:MM[:SS]"
+#   c64-sys ntp
+#   c64-sys governor NAME
+#   c64-sys turbo on|off
+#   c64-sys profile NAME
+#
+set -u
+CPU=/sys/devices/system/cpu
+case "${1:-}" in
+time)
+	printf '%s' "${2:-}" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}(:[0-9]{2})?$' || { echo "bad time"; exit 2; }
+	date -s "$2" >/dev/null && hwclock -w 2>/dev/null; date ;;
+ntp)
+	if command -v chronyc >/dev/null && chronyc tracking >/dev/null 2>&1; then chronyc -a makestep >/dev/null
+	else ntpd -q -n -p pool.ntp.org; fi
+	hwclock -w 2>/dev/null; date ;;
+governor)
+	g=${2:-}
+	grep -qw -- "$g" "$CPU/cpu0/cpufreq/scaling_available_governors" 2>/dev/null || { echo "no such governor"; exit 2; }
+	for f in "$CPU"/cpu*/cpufreq/scaling_governor; do echo "$g" > "$f"; done ;;
+turbo)
+	case "${2:-}" in on) n=0 b=1 ;; off) n=1 b=0 ;; *) echo "on or off"; exit 2 ;; esac
+	if [ -w "$CPU/intel_pstate/no_turbo" ]; then echo $n > "$CPU/intel_pstate/no_turbo"
+	elif [ -w "$CPU/cpufreq/boost" ]; then echo $b > "$CPU/cpufreq/boost"
+	else echo "no turbo control"; exit 2; fi ;;
+profile)
+	p=${2:-}
+	grep -qw -- "$p" /sys/firmware/acpi/platform_profile_choices 2>/dev/null || { echo "no such profile"; exit 2; }
+	echo "$p" > /sys/firmware/acpi/platform_profile ;;
+*) sed -n '2,8p' "$0"; exit 2 ;;
+esac

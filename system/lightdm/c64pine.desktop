@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=C64PINE
+Comment=The Commodore 64 desktop (everything in ~/.c64pine)
+Exec=/usr/local/bin/c64pine-session
+TryExec=/usr/local/bin/c64pine-session
+Type=Application
+DesktopNames=C64PINE

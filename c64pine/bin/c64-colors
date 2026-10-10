@@ -1,0 +1,103 @@
+#!/bin/sh
+: "${C64PINE:=$HOME/.c64pine}"
+# push the desktop colours to everything else:
+#   openbox theme, dmenu, st, gtk, mpv, zathura, nsxiv
+# colours come from cache/c64/geom. skipped if nothing changed
+G="$C64PINE/cache/c64/geom"
+[ -f "$G" ] || exit 0
+. "$G"
+CYAN='#75cec8' WHITE='#ffffff'
+# active window frame has to stand out from the border
+if [ "$TEXT" != "$BORDER" ]; then TITLE=$TEXT
+elif [ "$BORDER" != "$CYAN" ]; then TITLE=$CYAN
+else TITLE=$WHITE; fi
+
+rgb() { echo "${1#\#}" | sed 's/\(..\)\(..\)\(..\)/0x\1 0x\2 0x\3/'; }
+mix() { set -- $(rgb "$1") $(rgb "$2"); printf '#%02x%02x%02x' $(( ($1 * 2 + $4) / 3 )) $(( ($2 * 2 + $5) / 3 )) $(( ($3 * 2 + $6) / 3 )); }
+HOVER=$(mix "$SCREEN" "$TEXT")
+STAMP="$SCREEN $TEXT $TITLE"
+[ "$(cat "$C64PINE/cache/c64/colors.applied" 2>/dev/null)" = "$STAMP" ] && exit 0
+
+for t in "$C64PINE"/data/themes/c64-*/openbox-3/themerc.in; do
+	[ -f "$t" ] || continue
+	sed -e "s/@TITLE@/$TITLE/g" -e "s/@SCREEN@/$SCREEN/g" -e "s/@TEXT@/$TEXT/g" "$t" > "${t%.in}"
+done
+c="$C64PINE/data/themes/c64/gtk-3.0/gtk.css"
+[ -f "$c.in" ] && sed -e "s/@SCREEN@/$SCREEN/g" -e "s/@TEXT@/$TEXT/g" -e "s/@HOVER@/$HOVER/g" "$c.in" > "$c"
+# mpv, osc, zathura
+mkdir -p "$C64PINE/config/mpv/script-opts" "$C64PINE/config/zathura"
+cat > "$C64PINE/config/mpv/c64-colors.conf" <<EOM
+# written by c64-colors
+background-color='$SCREEN'
+osd-color='$TEXT'
+osd-back-color='$SCREEN'
+osd-border-color='$SCREEN'
+EOM
+cat > "$C64PINE/config/mpv/script-opts/osc.conf" <<EOM
+# written by c64-colors
+layout=bottombar
+seekbarstyle=bar
+boxalpha=0
+hidetimeout=1500
+background_color=$SCREEN
+timecode_color=$TEXT
+title_color=$TEXT
+time_pos_color=$SCREEN
+buttons_color=$TEXT
+top_buttons_color=$TEXT
+small_buttonsL_color=$TEXT
+small_buttonsR_color=$TEXT
+held_element_color=$TITLE
+seekbar_fg_color=$TEXT
+seekbar_bg_color=$HOVER
+seekbar_cache_color=$HOVER
+window_title_color=$TEXT
+window_controls_color=$TEXT
+EOM
+cat > "$C64PINE/config/zathura/c64-colors" <<EOM
+# written by c64-colors
+set default-bg "$SCREEN"
+set default-fg "$TEXT"
+set statusbar-bg "$TEXT"
+set statusbar-fg "$SCREEN"
+set inputbar-bg "$SCREEN"
+set inputbar-fg "$TEXT"
+set notification-bg "$TEXT"
+set notification-fg "$SCREEN"
+set notification-error-bg "$TEXT"
+set notification-error-fg "#813338"
+set notification-warning-bg "$TEXT"
+set notification-warning-fg "$SCREEN"
+set completion-bg "$SCREEN"
+set completion-fg "$TEXT"
+set completion-group-bg "$SCREEN"
+set completion-group-fg "$TITLE"
+set completion-highlight-bg "$TEXT"
+set completion-highlight-fg "$SCREEN"
+set index-bg "$SCREEN"
+set index-fg "$TEXT"
+set index-active-bg "$TEXT"
+set index-active-fg "$SCREEN"
+set render-loading-bg "$SCREEN"
+set render-loading-fg "$TEXT"
+set highlight-color "rgba(237,241,113,0.5)"
+set highlight-active-color "rgba(117,206,200,0.5)"
+set recolor-lightcolor "$SCREEN"
+set recolor-darkcolor "$TEXT"
+EOM
+xrdb -merge <<EOX
+dmenu.normfgcolor: $TEXT
+dmenu.normbgcolor: $SCREEN
+dmenu.selfgcolor: $SCREEN
+dmenu.selbgcolor: $TEXT
+st.foreground: $TEXT
+st.background: $SCREEN
+st.cursor: $TEXT
+st.reverseCursor: $SCREEN
+Nsxiv.window.background: $SCREEN
+Nsxiv.window.foreground: $TEXT
+Nsxiv.bar.background: $TEXT
+Nsxiv.bar.foreground: $SCREEN
+EOX
+pgrep -x openbox >/dev/null && openbox --reconfigure
+echo "$STAMP" > "$C64PINE/cache/c64/colors.applied"

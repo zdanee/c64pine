@@ -1,0 +1,185 @@
+#!/bin/sh
+# make-installer-iso - installer ISO of THIS system, as it is right now
+# (icons, colours, your files...). Adds kernel + firmware for real hardware
+# and puts it on the stock Alpine "standard" ISO.
+#
+#   make-installer-iso [--out FILE] [--usb] [--serve]
+#     --out FILE  default ~/c64pine-installer.iso
+#     --usb       write it to a USB stick afterwards
+#     --serve     serve it over HTTP so the host can grab it
+#
+# needs network and ~3.5 GB free space.
+# the running system isn't modified, everything happens in an overlay
+#
+set -eu
+SHARE=/usr/local/share/c64pine-iso
+W=/var/tmp/c64pine-iso
+REAL_USER=${DOAS_USER:-${USER:-sandbox}}
+
+say() { printf '%s\n' "$*"; }
+die() { say "?$*  ERROR"; exit 1; }
+
+OUT="" USB=0 SERVE=0
+while [ $# -gt 0 ]; do
+	case "$1" in
+		--out) OUT=$2; shift ;;
+		--usb) USB=1 ;;
+		--serve) SERVE=1 ;;
+		-h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+		*) die "UNKNOWN OPTION $1" ;;
+	esac
+	shift
+done
+if [ "$(id -u)" != 0 ]; then
+	say "(root needed: doas)"
+	exec doas "$0" ${OUT:+--out "$OUT"} $( [ $USB = 1 ] && echo --usb ) $( [ $SERVE = 1 ] && echo --serve )
+fi
+HOMEDIR=$(getent passwd "$REAL_USER" | cut -d: -f6)
+[ -n "$HOMEDIR" ] || HOMEDIR=/root
+[ -n "$OUT" ] || OUT="$HOMEDIR/c64pine-installer.iso"
+REL=$(cat /etc/alpine-release)
+BRANCH=v$(echo "$REL" | cut -d. -f1,2)
+STD="alpine-standard-$REL-x86_64.iso"
+CDN="https://dl-cdn.alpinelinux.org/alpine/$BRANCH"
+
+say ""
+say "    **** C64PINE INSTALLER ISO ****"
+say ""
+[ -f "$SHARE/install.sh" ] && [ -f "$SHARE/laptop.sh" ] && [ -f "$SHARE/hardware.sh" ] || die "$SHARE IS INCOMPLETE"
+avail=$(df -k /var/tmp | awk 'NR == 2 { print $4 }')
+[ "$avail" -gt 3500000 ] || die "NOT ENOUGH DISK SPACE ($((avail / 1024)) MB FREE, 3500 NEEDED)"
+wget -q --spider "$CDN/releases/x86_64/$STD.sha256" || die "NO NETWORK (OR NO $STD ON THE MIRROR)"
+
+cleanup() {
+	set +e
+	for m in dev proc sys; do umount -l "$W/root/$m" 2>/dev/null; done
+	umount "$W/root" 2>/dev/null
+	umount "$W/lower" 2>/dev/null
+	umount "$W/up" 2>/dev/null
+	rm -rf "$W"
+}
+trap cleanup EXIT INT TERM
+cleanup
+mkdir -p "$W/lower" "$W/up" "$W/root"
+
+say "LOADING TOOLS"
+apk add --quiet xorriso e2fsprogs tar pigz
+for m in overlay loop ext4; do modprobe $m 2>/dev/null || true; done
+
+
+
+# --- overlay ---
+# upper layer has to be in an image file, overlayfs won't take overlapping dirs
+say "PREPARING THE SYSTEM COPY"
+truncate -s 4G "$W/upper.img"
+mkfs.ext4 -q -F "$W/upper.img"
+mount -o loop -t ext4 "$W/upper.img" "$W/up"
+mkdir -p "$W/up/upper" "$W/up/work"
+mount --bind / "$W/lower"
+mount -t overlay overlay -o "lowerdir=$W/lower,upperdir=$W/up/upper,workdir=$W/up/work" "$W/root"
+R=$W/root
+for m in dev proc sys; do mount --rbind /$m "$R/$m"; done
+cp /etc/resolv.conf "$R/etc/resolv.conf"
+
+# user is always "sandbox" in the image, install.sh renames it
+if [ "$REAL_USER" != sandbox ] && [ -d "$R/home/$REAL_USER" ]; then
+	chroot "$R" /bin/sh -c "
+		rm -rf /home/sandbox
+		mv '/home/$REAL_USER' /home/sandbox
+		deluser '$REAL_USER' 2>/dev/null || true
+		deluser sandbox 2>/dev/null || true
+		adduser -D -H -h /home/sandbox -s /bin/ash sandbox
+		for g in wheel audio video input plugdev lp; do addgroup sandbox \$g 2>/dev/null || true; done
+		grep -rl '/home/$REAL_USER' /home/sandbox 2>/dev/null | while read -r f; do sed -i 's#/home/$REAL_USER#/home/sandbox#g' \"\$f\"; done
+		sed -i 's/login -f [a-z_][a-z0-9_-]*/login -f sandbox/' /usr/local/sbin/autologin
+		chown -R sandbox:sandbox /home/sandbox"
+fi
+rm -rf "$R/home/sandbox/.cache" "$R/home/sandbox/.c64pine/cache" "$R/home/sandbox/.local/share/Trash" "$R/home/sandbox/.ash_history" \
+	"$R/home/sandbox/.local/share/recently-used.xbel" "$R/var/cache/apk/"* "$R/tmp/"*
+
+say "CONVERTING FOR REAL HARDWARE (DOWNLOADS THE KERNEL AND FIRMWARE)"
+cp "$SHARE/laptop.sh" "$SHARE/hardware.sh" "$R/tmp/"
+cp "$SHARE/help-laptop.txt" "$R/tmp/help-laptop.txt"
+chroot "$R" env HELP_FILE=/tmp/help-laptop.txt /bin/sh /tmp/laptop.sh > "$W/laptop.log" 2>&1 || { tail -20 "$W/laptop.log"; die "CONVERSION FAILED"; }
+rm -f "$R/tmp/laptop.sh" "$R/tmp/hardware.sh" "$R/tmp/help-laptop.txt" "$R/etc/resolv.conf"
+echo c64pine > "$R/etc/hostname"
+for m in dev proc sys; do umount -l "$R/$m"; done
+
+say "PACKING (A FEW MINUTES)"
+( cd "$R" && tar --numeric-owner --exclude=./var/tmp/c64pine-iso -cpf - . ) | pigz -6 > "$W/rootfs.tar.gz"
+
+say "LOADING THE ALPINE $REL ISO"
+wget -q -O "$W/$STD" "$CDN/releases/x86_64/$STD"
+wget -q -O "$W/$STD.sha256" "$CDN/releases/x86_64/$STD.sha256"
+( cd "$W" && sha256sum -c "$STD.sha256" >/dev/null ) || die "ISO CHECKSUM MISMATCH"
+apk fetch --quiet -o "$W" dosfstools
+DOS=$(ls "$W"/dosfstools-*.apk)
+
+
+# apkovl for the live system. NB: an apkovl replaces the default runlevels, so they have to be in there
+O=$W/ovl
+mkdir -p "$O/etc/runlevels/sysinit" "$O/etc/runlevels/boot" "$O/etc/runlevels/shutdown" "$O/usr/local/sbin"
+echo c64pine-installer > "$O/etc/hostname"
+printf '\n    **** C64PINE INSTALLER ****\n\n LOG IN AS root (NO PASSWORD), THEN TYPE\n\n   c64-install\n\n AND PRESS RETURN. IT ERASES THE DISK YOU CHOOSE.\n\n' > "$O/etc/motd"
+cat > "$O/usr/local/sbin/c64-install" <<'EOF'
+#!/bin/sh
+# runs the installer from the boot media (CD: /media/cdrom, USB: /media/sdX)
+for d in /media/*/c64; do
+	[ -f "$d/install.sh" ] && exec sh "$d/install.sh" "$@"
+done
+echo "?INSTALLER NOT FOUND (is the boot media mounted under /media?)  ERROR"
+exit 1
+EOF
+chmod 755 "$O/usr/local/sbin/c64-install"
+for s in devfs dmesg mdev hwdrivers modloop; do ln -s /etc/init.d/$s "$O/etc/runlevels/sysinit/$s"; done
+for s in hwclock modules sysctl hostname bootmisc syslog; do ln -s /etc/init.d/$s "$O/etc/runlevels/boot/$s"; done
+for s in mount-ro killprocs savecache; do ln -s /etc/init.d/$s "$O/etc/runlevels/shutdown/$s"; done
+tar -C "$O" -czf "$W/localhost.apkovl.tar.gz" etc usr
+
+say "WRITING THE ISO"
+rm -f "$OUT"
+xorriso -indev "$W/$STD" -outdev "$OUT" \
+	-map "$W/rootfs.tar.gz" /c64/rootfs.tar.gz \
+	-map "$SHARE/install.sh" /c64/install.sh \
+	-map "$DOS" "/c64/apks/$(basename "$DOS")" \
+	-map "$SHARE/README.txt" /c64/README.txt \
+	-map "$W/localhost.apkovl.tar.gz" /localhost.apkovl.tar.gz \
+	-boot_image any replay >"$W/xorriso.log" 2>&1 || { tail "$W/xorriso.log"; die "XORRISO FAILED"; }
+( cd "$(dirname "$OUT")" && sha256sum "$(basename "$OUT")" > "$(basename "$OUT").sha256" )
+chown "$REAL_USER" "$OUT" "$OUT.sha256" 2>/dev/null || true
+cleanup
+trap - EXIT INT TERM
+
+say ""
+say "READY."
+say " $OUT  ($(( $(stat -c %s "$OUT") / 1048576 )) MB)"
+
+if [ "$USB" = 1 ]; then
+	say ""
+	say "USB DISKS:"
+	n=0
+	for b in /sys/block/sd*; do
+		[ -e "$b" ] || continue
+		case "$(readlink -f "$b")" in *usb*) ;; *) continue ;; esac
+		d=${b##*/}
+		say "  /dev/$d   $(( $(cat "$b/size") / 2097152 )) GB   $(cat "$b/device/model" 2>/dev/null | sed 's/ *$//')"
+		n=$((n + 1)); first=/dev/$d
+	done
+	if [ "$n" = 0 ]; then
+		say "  NONE. (in the sandbox: the viewer's USB device menu passes a stick in)"
+	else
+		printf 'write to [%s]: ' "$first"; read -r dev; dev=${dev:-$first}
+		printf 'everything on %s will be ERASED. type YES: ' "$dev"; read -r ok
+		[ "$ok" = YES ] || die "BREAK"
+		dd if="$OUT" of="$dev" bs=4M conv=fsync 2>/dev/null && sync && say "WRITTEN TO $dev."
+	fi
+fi
+
+if [ "$SERVE" = 1 ]; then
+	ip=$(ip -4 -o addr show scope global | awk '{ sub("/.*", "", $4); print $4; exit }')
+	say ""
+	say "ON THE HOST:"
+	say "  curl -o c64pine-installer.iso http://$ip:8064/$(basename "$OUT")"
+	say "(CTRL+C STOPS SERVING)"
+	busybox httpd -f -p 8064 -h "$(dirname "$OUT")"
+fi

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- C64PINE: C64 files (Alpine's shared-mime-info has no Commodore types); .crt stays a certificate -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-c64-program">
+    <comment>Commodore 64 program</comment>
+    <glob pattern="*.prg"/>
+    <glob pattern="*.c64"/>
+    <glob pattern="*.p00"/>
+  </mime-type>
+  <mime-type type="application/x-commodore-d64-disk">
+    <comment>Commodore 1541 disk image</comment>
+    <glob pattern="*.d64"/>
+  </mime-type>
+  <mime-type type="application/x-commodore-g64-disk">
+    <comment>Commodore GCR disk image</comment>
+    <glob pattern="*.g64"/>
+  </mime-type>
+  <mime-type type="application/x-commodore-d71-disk">
+    <comment>Commodore 1571 disk image</comment>
+    <glob pattern="*.d71"/>
+  </mime-type>
+  <mime-type type="application/x-commodore-g71-disk">
+    <comment>Commodore 1571 GCR disk image</comment>
+    <glob pattern="*.g71"/>
+  </mime-type>
+  <mime-type type="application/x-commodore-d81-disk">
+    <comment>Commodore 1581 disk image</comment>
+    <glob pattern="*.d81"/>
+  </mime-type>
+  <mime-type type="application/x-commodore-x64-disk">
+    <comment>Commodore disk image (x64)</comment>
+    <glob pattern="*.x64"/>
+  </mime-type>
+  <mime-type type="application/x-commodore-tape">
+    <comment>Commodore tape image</comment>
+    <glob pattern="*.t64"/>
+    <glob pattern="*.tap"/>
+  </mime-type>
+  <mime-type type="application/x-c64-basic-listing">
+    <comment>Commodore 64 BASIC listing (C64.SAV)</comment>
+    <glob pattern="*.sav"/>
+  </mime-type>
+</mime-info>

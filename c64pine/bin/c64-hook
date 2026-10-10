@@ -1,0 +1,6 @@
+#!/bin/sh
+# c64desk runs this when size, scale or colours change (new values in cache/c64/geom)
+c64-colors
+
+pkill -f c64-bar; pkill -x lemonbar
+exec c64-bar >/dev/null 2>&1

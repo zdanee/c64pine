@@ -1,0 +1,87 @@
+# C64PINE's menus. Change them with the MENUS app (DESKTOP menu > SETTINGS > MENUS), or here.
+#   [DESKTOP]   the desktop's right-click menu (also Super+F12)
+#   [PROGRAMS]  its PROGRAMS submenu
+#   [LOAD]      the LOAD"*",8,1 list of the bar (Alt+Space): type to search; submenus show as "SUBMENU: ENTRY"
+# One entry per line, two spaces of indentation per submenu level:
+#   LABEL = command    runs the command (with sh); left out when its program is not installed
+#   LABEL >            a submenu: the more indented lines under it
+#   -                  a separator line
+#   @NAME              built in: @programs (the PROGRAMS entries, here), @desktops (the desktops and their windows),
+#                      @new-shortcut, @new-folder, @new-file, @line-up
+[DESKTOP]
+PROGRAMS >
+  @programs
+-
+@new-shortcut
+@new-folder
+@new-file
+@line-up
+OPEN DESKTOP FOLDER = env GTK_THEME=c64 pcmanfm "$C64PINE/Desktop"
+-
+C64 SCREEN = c64desk --c64 show
+C64 FULLSCREEN = c64desk --c64 fullscreen
+C64 SETTINGS = c64desk --c64 settings
+-
+COLOURS >
+  C64 (LIGHT BLUE ON BLUE) = c64-theme c64
+  C128 (GREEN ON GREY) = c64-theme c128
+  VIC-20 (CYAN ON WHITE) = c64-theme vic20
+  SX-64 (BLUE ON WHITE) = c64-theme sx64
+  PET (GREEN ON BLACK) = c64-theme pet
+WALLPAPER >
+  CHOOSE A PICTURE... = c64-wallpaper
+  NEXT PICTURE = c64-wallpaper next
+  NONE = c64-wallpaper off
+DESKTOPS >
+  @desktops
+-
+ICON EDITOR = c64desk --sprite-editor
+HELP (F1) = c64-help
+
+[PROGRAMS]
+TERMINAL = c64-term
+WEB BROWSER = c64-browser
+WORD PROCESSOR = abiword
+SPREADSHEET = gnumeric
+IMAGE EDITOR = gimp
+PICTURE VIEWER = c64-pictures
+PDF VIEWER = zathura
+MUSIC PLAYER = c64-music
+VIDEO PLAYER = mpv --player-operation-mode=pseudo-gui
+FILE MANAGER = env GTK_THEME=c64 pcmanfm
+TERMINAL FILE MANAGER = c64-term -e mc
+TEXT BROWSER = c64-term -e links
+TASK MANAGER = c64-term -e htop
+NETWORK (WIFI / LAN) = c64-term -e nmtui
+BLUETOOTH = c64-term -e bluetuith
+DISPLAYS (HDMI / VGA) = arandr
+CAMERA + MIC = guvcview
+OPENCODE = c64-term -e opencode
+C64 EMULATOR (VICE) = c64desk --c64 show
+-
+CAPTURE >
+  CAPTURE... = c64-capture
+  -
+  SCREENSHOT = c64-capture shot
+  SCREENSHOT OF A WINDOW = c64-capture window
+  SCREENSHOT OF AN AREA = c64-capture area
+  -
+  RECORD VIDEO = c64-capture video
+  RECORD VIDEO + MIC = c64-capture video-mic
+  RECORD ANIMATED GIF = c64-capture gif
+  RECORD ANIMATED WEBP = c64-capture webp
+  STOP RECORDING = c64-capture stop
+SETTINGS >
+  MENUS = c64-menus
+  CRT FILTER ON/OFF = c64-crt
+  RESOLUTION AND SCALE = c64-display
+-
+MAKE INSTALLER ISO = c64-term -e sh -c 'make-installer-iso --serve; echo; echo PRESS RETURN; read x'
+-
+SLEEP = c64-power sleep
+RESTART = c64-power reboot
+LOG OUT = c64-power logout
+POWER OFF = c64-power off
+
+[LOAD]
+@programs

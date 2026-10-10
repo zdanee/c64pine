@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=C64PINE Greeter
+Comment=A LightDM greeter that looks like a Commodore 64
+Exec=/usr/local/sbin/c64pine-greeter
+Type=Application
+X-Ubuntu-Gettext-Domain=lightdm

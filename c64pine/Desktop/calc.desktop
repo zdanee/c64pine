@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=CALC
+Exec=gnumeric
+TryExec=gnumeric
+Icon=calc
+X-C64-Order=60

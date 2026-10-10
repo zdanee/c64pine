@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=OPENCODE
+Exec=sh -c "c64-term -e opencode"
+TryExec=opencode
+Icon=code
+X-C64-Order=15

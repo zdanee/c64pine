@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=PICTURES
+Comment=nsxiv with the other pictures of the folder (c64-pictures)
+Exec=c64-pictures %F
+Icon=image-x-generic
+NoDisplay=true
+MimeType=image/png;image/jpeg;image/gif;image/webp;image/bmp;image/tiff;image/x-xpixmap;image/svg+xml;

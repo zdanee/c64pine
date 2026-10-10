@@ -1,0 +1,7 @@
+#!/bin/sh
+# ctrl+x then:  w wallpaper, g gimp, d copy to desktop
+case "$1" in
+	w) read -r f && c64-wallpaper set "$f" ;;
+	g) xargs -d '\n' gimp >/dev/null 2>&1 & ;;
+	d) xargs -d '\n' cp -t "$C64PINE/Desktop" ;;
+esac

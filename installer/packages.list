@@ -1,0 +1,19 @@
+# What C64PINE needs, per package manager. One line per need:
+#   GROUP | WHAT | apt (Debian, Ubuntu, Mint ...) | pacman (Arch, Manjaro ...) | dnf (Fedora, RHEL, Rocky, Alma ...) | apk (Alpine)
+# Several names = all of them. "a/b" = a, or else b. "src:NAME" = build it from source into ~/.c64pine/opt (the recipe is
+# src/NAME.sh), when no package of it is installed or installable. "-" = not available there (that part is left out).
+# Groups: core = needed; build = only for building (the uninstaller can remove them); the rest are optional parts.
+core|X11, xinit and the X tools|xserver-xorg-core xinit xauth x11-xserver-utils x11-xkb-utils x11-utils|xorg-server xorg-xinit xorg-xauth xorg-xrdb xorg-xset xorg-xsetroot xorg-xrandr xorg-setxkbmap xorg-xprop xorg-xdpyinfo|xorg-x11-server-Xorg xorg-x11-xinit xorg-x11-xauth xrdb xset xsetroot xrandr setxkbmap xprop xdpyinfo|xorg-server xinit xauth xrdb xset xsetroot xrandr setxkbmap xprop xdpyinfo
+core|Openbox (the window manager)|openbox|openbox|openbox|openbox
+core|xdotool, D-Bus for X|xdotool dbus-x11|xdotool dbus|xdotool dbus-x11|xdotool dbus-x11
+core|fonts, curl, jq, xdg-utils, ALSA tools|fonts-dejavu-core curl jq xdg-utils alsa-utils|ttf-dejavu curl jq xdg-utils alsa-utils|dejavu-sans-mono-fonts curl jq xdg-utils alsa-utils|font-dejavu curl jq xdg-utils alsa-utils
+core|the libraries the programs built here use|libx11-6 libxft2 libxext6 libxfixes3 libxrandr2 libxinerama1 libxcb1 libfreetype6 libfontconfig1|libx11 libxft libxext libxfixes libxrandr libxinerama libxcb freetype2 fontconfig|libX11 libXft libXext libXfixes libXrandr libXinerama libxcb freetype fontconfig|libx11 libxft libxext libxfixes libxrandr libxinerama libxcb freetype fontconfig
+core|the file manager, screenshots, mc, htop|pcmanfm scrot mc htop|pcmanfm scrot mc htop|pcmanfm scrot mc htop|pcmanfm scrot mc htop
+build|compilers and X headers (to build c64desk, st, dmenu, the bar)|build-essential pkg-config patch ncurses-bin libx11-dev libxft-dev libxext-dev libxfixes-dev libxrandr-dev libxinerama-dev libxcb1-dev libxcb-xinerama0-dev libxcb-randr0-dev libx11-xcb-dev libfreetype-dev libfontconfig-dev|base-devel patch ncurses|gcc make pkgconf-pkg-config patch ncurses libX11-devel libXft-devel libXext-devel libXfixes-devel libXrandr-devel libXinerama-devel libxcb-devel xcb-util-devel freetype-devel fontconfig-devel|build-base pkgconf patch ncurses libx11-dev libxft-dev libxext-dev libxfixes-dev libxrandr-dev libxinerama-dev libxcb-dev xcb-util-dev freetype-dev fontconfig-dev
+crt|picom (the CRT filter over every window)|picom|picom|picom|picom
+sound|PipeWire (only when no sound server is installed)|pipewire pipewire-pulse wireplumber pipewire-alsa pulseaudio-utils|pipewire pipewire-pulse wireplumber pipewire-alsa libpulse|pipewire pipewire-pulseaudio wireplumber pipewire-alsa pulseaudio-utils|pipewire pipewire-pulse wireplumber pipewire-alsa pulseaudio-utils
+vice|VICE, the C64 emulator (BASIC on the desktop, C64 software)|src:vice|vice|vice/src:vice|vice@testing
+media|music, video, pictures, PDF, screen recording|cmus mpv nsxiv zathura zathura-pdf-poppler ffmpeg|cmus mpv nsxiv zathura zathura-pdf-mupdf ffmpeg|cmus/src:cmus mpv nsxiv/src:nsxiv zathura zathura-pdf-mupdf ffmpeg-free|cmus mpv nsxiv zathura zathura-pdf-mupdf ffmpeg
+archives|zip, 7z, rar (extract), tar.*, the archiver|zip unzip 7zip libarchive-tools lhasa cabextract xarchiver|zip unzip 7zip libarchive lhasa cabextract xarchiver|zip unzip 7zip bsdtar cabextract xarchiver|zip unzip 7zip libarchive-tools lha cabextract xarchiver
+office|AbiWord, Gnumeric, GIMP (the WRITER, CALC, PAINT icons)|abiword gnumeric gimp|abiword gnumeric gimp|abiword gnumeric gimp|abiword gnumeric gimp
+greeter|LightDM and what the C64 login screen is built with|lightdm liblightdm-gobject-dev libglib2.0-dev|lightdm glib2|lightdm lightdm-gobject-devel glib2-devel|lightdm lightdm-dev

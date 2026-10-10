@@ -1,0 +1,229 @@
+#!/bin/sh
+# MENUS - editor for config/c64/menus (TUI)
+: "${C64PINE:=$HOME/.c64pine}"
+[ -t 0 ] || exec c64-term -t MENUS -e "$0" "$@"
+F="$C64PINE/config/c64/menus"
+DEFAULT="$C64PINE/data/c64/menus.default"
+. "$C64PINE/lib/tui.sh"
+T="MENUS"
+W=$(mktemp -d "${TMPDIR:-/tmp}/c64-menus.XXXXXX")
+TUI_ATEXIT='rm -rf "$W"'
+SECTIONS="DESKTOP PROGRAMS LOAD"
+NAMES_DESKTOP="THE DESKTOP MENU" NAMES_PROGRAMS="ITS PROGRAMS MENU" NAMES_LOAD='LOAD"*",8,1'
+
+
+# split the file: $W/head + one file per section
+split_file() {
+	: >"$W/head"; for s in $SECTIONS; do : >"$W/$s"; done
+	awk -v dir="$W" '
+		/^\[/ { sec = substr($0, 2, index($0, "]") - 2); next }
+		sec == "" { print > (dir "/head"); next }
+		/^#/ || /^[[:space:]]*$/ { next }
+		{ print > (dir "/" sec) }' "$1"
+}
+save_file() {
+	{ cat "$W/head"; f=1; for s in $SECTIONS; do [ $f = 1 ] || echo; f=0; echo "[$s]"; cat "$W/$s"; done; } >"$F.tmp" && mv "$F.tmp" "$F"
+	changed=0
+}
+
+n() { wc -l <"$W/$sec" | tr -d ' '; }
+line() { sed -n "${1}p" "$W/$sec"; }
+ind() { line "$1" | awk '{ match($0, /^ */); print int(RLENGTH / 2) }'; }
+text() { line "$1" | sed 's/^ *//'; }
+is_sub() { text "$1" | grep -q '>[[:space:]]*$'; }
+
+# last line of entry N incl. its submenu
+block_end() {
+	awk -v n="$1" 'function lvl(s) { match(s, /^ */); return int(RLENGTH / 2) }
+		NR == n { l = lvl($0); e = n; next } NR > n && e { if (lvl($0) > l) e = NR; else exit } END { print e }' "$W/$sec"
+}
+
+shift_lines() {
+	awk -v a="$1" -v b="$2" -v d="$3" 'NR >= a && NR <= b { if (d > 0) $0 = "  " $0; else sub(/^  /, "") } { print }' \
+		"$W/$sec" >"$W/x" && mv "$W/x" "$W/$sec"
+}
+# move A..B after C (0 = top)
+move_lines() {
+	awk -v a="$1" -v b="$2" -v c="$3" '{ L[NR] = $0 } END {
+		if (c == 0) for (i = a; i <= b; i++) print L[i]
+		for (i = 1; i <= NR; i++) { if (i >= a && i <= b) continue; print L[i]; if (i == c) for (j = a; j <= b; j++) print L[j] } }' \
+		"$W/$sec" >"$W/x" && mv "$W/x" "$W/$sec"
+}
+insert_after() {   # N TEXT
+	awk -v c="$1" -v t="$2" 'c == 0 && NR == 1 { print t } { print } NR == c { print t } END { if (NR == 0) print t }' \
+		"$W/$sec" >"$W/x" && mv "$W/x" "$W/$sec"
+}
+
+
+show() {
+	t=$1
+	case "$t" in
+		-|---) echo "--------------------" ;;
+		@programs) echo "(THE PROGRAMS MENU'S ENTRIES)" ;;
+		@desktops) echo "(THE DESKTOPS AND THEIR WINDOWS)" ;;
+		@new-shortcut) echo "NEW SHORTCUT...  (BUILT IN)" ;;
+		@new-folder) echo "NEW FOLDER...  (BUILT IN)" ;;
+		@new-file) echo "NEW TEXT FILE...  (BUILT IN)" ;;
+		@line-up) echo "LINE UP ICONS  (BUILT IN)" ;;
+		@*) echo "($t)" ;;
+		*" = "*) echo "${t%% = *}" ;;
+		*">") echo "${t%>}  >" ;;
+		*) echo "$t" ;;
+	esac
+}
+
+
+# NAME<tab>command for everything with a .desktop file
+programs() {
+	for d in "$C64PINE/data/applications" "$HOME/.local/share/applications" /usr/local/share/applications /usr/share/applications; do
+		for f in "$d"/*.desktop; do [ -f "$f" ] && echo "$f"; done
+	done | while IFS= read -r f; do
+		awk -F= '/^\[/ { main = ($0 == "[Desktop Entry]") } !main { next }
+			$1 == "Name" && name == "" { name = substr($0, 6) } $1 == "Exec" && ex == "" { ex = substr($0, 6) }
+			$1 == "NoDisplay" && $2 == "true" { hide = 1 } $1 == "Terminal" && $2 == "true" { term = 1 }
+			END { if (name != "" && ex != "" && !hide) { gsub(/ ?%[fFuUdDnNickvm]/, "", ex); if (term) ex = "c64-term -e " ex
+				print toupper(name) "\t" ex } }' "$f"
+	done | sort -u -t "$(printf '\t')" -k1,1
+}
+
+add_entry() {
+	tui_menu "$T" "ADD AFTER THE SELECTED ENTRY:" "A PROGRAM (FROM THE INSTALLED ONES)" "A COMMAND (TYPE IT)" \
+		"A SUBMENU" "A SEPARATOR LINE" "A BUILT-IN ENTRY" || return
+	pre=$(printf '%*s' $(( $(ind "$sel" 2>/dev/null || echo 0) * 2 )) '')
+	[ "$(n)" -gt 0 ] || pre=""
+	at=$( [ "$(n)" -gt 0 ] && block_end "$sel" || echo 0)
+	case $TUI_RESULT in
+		1) programs >"$W/progs"
+		   [ -s "$W/progs" ] || { tui_view "$T" "No installed programs were found."; return; }
+		   set --; while IFS="$(printf '\t')" read -r a b; do set -- "$@" "$a"; done <"$W/progs"
+		   tui_menu "$T" "WHICH PROGRAM?" "$@" || return
+		   pl=$(sed -n "${TUI_RESULT}p" "$W/progs")
+		   lab=${pl%%	*} cmd=${pl#*	}
+		   tui_input "$T" "Its name in the menu:" "$lab" || return
+		   insert_after "$at" "$pre$TUI_RESULT = $cmd" ;;
+		2) tui_input "$T" "Its name in the menu (capitals look best):" "" || return
+		   lab=$TUI_RESULT
+		   tui_input "$T" "The command (as in a terminal):" "" || return
+		   [ -n "$lab" ] && [ -n "$TUI_RESULT" ] && insert_after "$at" "$pre$lab = $TUI_RESULT" ;;
+		3) tui_input "$T" "The submenu's name (then move entries into it with the right arrow):" "" || return
+		   [ -n "$TUI_RESULT" ] && insert_after "$at" "$pre$TUI_RESULT >" ;;
+		4) insert_after "$at" "$pre-" ;;
+		5) tui_menu "$T" "WHICH ONE?" "THE PROGRAMS MENU'S ENTRIES" "THE DESKTOPS AND THEIR WINDOWS" "NEW SHORTCUT..." \
+			"NEW FOLDER..." "NEW TEXT FILE..." "LINE UP ICONS" || return
+		   b=$(echo "programs desktops new-shortcut new-folder new-file line-up" | cut -d' ' -f"$TUI_RESULT")
+		   insert_after "$at" "$pre@$b" ;;
+	esac
+	changed=1
+	[ "$at" -gt 0 ] && sel=$((at + 1)) || sel=1
+}
+
+edit_entry() {
+	t=$(text "$sel")
+	pre=$(printf '%*s' $(( $(ind "$sel") * 2 )) '')
+	case "$t" in
+		-|---|@*) tui_view "$T" "This entry has nothing to change (move it, or remove it with D)."; return ;;
+		*" = "*) tui_input "$T" "The name in the menu:" "${t%% = *}" || return
+		         lab=$TUI_RESULT
+		         tui_input "$T" "The command:" "${t#* = }" || return
+		         new="$pre$lab = $TUI_RESULT" ;;
+		*">") tui_input "$T" "The submenu's name:" "$(echo "${t%>}" | sed 's/ *$//')" || return
+		      new="$pre$TUI_RESULT >" ;;
+		*) return ;;
+	esac
+	awk -v n="$sel" -v t="$new" 'NR == n { print t; next } { print }' "$W/$sec" >"$W/x" && mv "$W/x" "$W/$sec"
+	changed=1
+}
+
+
+
+#############################################################
+# main loop
+#############################################################
+draw() {
+	tui_frame "$T" "TAB = NEXT MENU   S = SAVE   R = THE ORIGINAL MENUS   Q = QUIT"
+	tabs=""
+	for s in $SECTIONS; do
+		eval "nm=\$NAMES_$s"
+		[ "$s" = "$sec" ] && tabs="$tabs [ $nm ] " || tabs="$tabs   $nm   "
+	done
+	tui_line $TUI_Y0 "$tabs"
+	tui_line $((TUI_Y0 + 1)) "RETURN = EDIT   A = ADD   D = REMOVE   U / N = UP / DOWN   LEFT / RIGHT = OUT OF / INTO A SUBMENU"
+	rows=$((TUI_IH - 7))
+	cnt=$(n)
+	[ "$sel" -gt "$cnt" ] && sel=$cnt
+	[ "$sel" -lt 1 ] && sel=1
+	[ "$sel" -le "$top" ] && top=$((sel - 1))
+	[ "$sel" -gt $((top + rows)) ] && top=$((sel - rows))
+	[ "$top" -lt 0 ] && top=0
+	r=0
+	awk -v t="$top" -v r="$rows" 'NR > t && NR <= t + r' "$W/$sec" >"$W/view"
+	while IFS= read -r l; do
+		k=$((top + r + 1))
+		lv=$(echo "$l" | awk '{ match($0, /^ */); print RLENGTH }')
+		txt="$(printf '%*s' "$lv" '')$(show "$(echo "$l" | sed 's/^ *//')")"
+		if [ $k -eq "$sel" ]; then tui_line $((TUI_Y0 + 3 + r)) " $txt" rev; else tui_line $((TUI_Y0 + 3 + r)) " $txt"; fi
+		r=$((r + 1))
+	done <"$W/view"
+	[ "$cnt" -eq 0 ] && tui_line $((TUI_Y0 + 3)) " (EMPTY: A = ADD)"
+	t=$(text "$sel" 2>/dev/null)
+	case "$t" in *" = "*) info="RUNS: ${t#* = }" ;; *">") info="A SUBMENU: ITS ENTRIES ARE INDENTED UNDER IT" ;; *) info="" ;; esac
+	[ "$changed" = 1 ] && info="(CHANGED, NOT SAVED)  $info"
+	tui_line $((TUI_Y0 + TUI_IH - 3)) "$info"
+}
+
+[ -f "$F" ] || { [ -f "$DEFAULT" ] && cp "$DEFAULT" "$F"; }
+[ -f "$F" ] || { echo "No $F"; exit 1; }
+split_file "$F"
+sec=DESKTOP sel=1 top=0 changed=0
+tui_init
+while :; do
+	draw
+	tui_key
+	cnt=$(n)
+	case "$TUI_KEY" in
+		up) [ "$sel" -gt 1 ] && sel=$((sel - 1)) ;;
+		down) [ "$sel" -lt "$cnt" ] && sel=$((sel + 1)) ;;
+		pgup) sel=$((sel - 10)) ;;
+		pgdn) sel=$((sel + 10)); [ "$sel" -le "$cnt" ] || sel=$cnt ;;
+		tab) case $sec in DESKTOP) sec=PROGRAMS ;; PROGRAMS) sec=LOAD ;; *) sec=DESKTOP ;; esac; sel=1 top=0 ;;
+		enter) [ "$cnt" -gt 0 ] && edit_entry ;;
+		a|A) add_entry ;;
+		d|D|bs) [ "$cnt" -gt 0 ] || continue
+		        e=$(block_end "$sel")
+		        what=$(show "$(text "$sel")")
+		        [ "$e" -gt "$sel" ] && what="$what (AND THE $((e - sel)) ENTRIES IN IT)"
+		        tui_yesno "$T" "REMOVE $what?" || continue
+		        sed -i "${sel},${e}d" "$W/$sec"; changed=1 ;;
+		u|U) [ "$cnt" -gt 0 ] || continue
+		     l=$(ind "$sel") p=$((sel - 1))
+		     while [ $p -ge 1 ] && [ "$(ind $p)" -gt "$l" ]; do p=$((p - 1)); done
+		     [ $p -ge 1 ] && [ "$(ind $p)" -eq "$l" ] || continue
+		     e=$(block_end "$sel"); move_lines "$sel" "$e" $((p - 1)); sel=$p; changed=1 ;;
+		n|N) [ "$cnt" -gt 0 ] || continue
+		     l=$(ind "$sel") e=$(block_end "$sel") q=$(( $(block_end "$sel") + 1 ))
+		     [ $q -le "$cnt" ] && [ "$(ind $q)" -eq "$l" ] || continue
+		     e2=$(block_end $q); move_lines "$sel" "$e" "$e2"; sel=$((sel + e2 - e)); changed=1 ;;
+		right) [ "$cnt" -gt 0 ] || continue                     # into the submenu above
+		     l=$(ind "$sel") p=$((sel - 1))
+		     while [ $p -ge 1 ] && [ "$(ind $p)" -gt "$l" ]; do p=$((p - 1)); done
+		     if [ $p -ge 1 ] && [ "$(ind $p)" -eq "$l" ] && is_sub $p; then shift_lines "$sel" "$(block_end "$sel")" 1; changed=1
+		     else tui_view "$T" "To move an entry into a submenu, it must come right after that submenu (move it with U / N)."; fi ;;
+		left) [ "$cnt" -gt 0 ] && [ "$(ind "$sel")" -gt 0 ] || continue
+		     l=$(ind "$sel") e=$(block_end "$sel") p=$((sel - 1))
+		     while [ $p -ge 1 ] && [ "$(ind $p)" -ge "$l" ]; do p=$((p - 1)); done
+		     pe=$(block_end $p)
+		     shift_lines "$sel" "$e" -1
+		     if [ "$pe" -gt "$e" ]; then move_lines "$sel" "$e" "$pe"; sel=$((pe - e + sel)); fi
+		     changed=1 ;;
+		s|S) save_file; tui_view "$T" "SAVED. The menus use it from the next time they open." ;;
+		r|R) [ -f "$DEFAULT" ] || continue
+		     tui_yesno "$T" "PUT BACK THE ORIGINAL MENUS (your changes go)?" && { split_file "$DEFAULT"; changed=1; sel=1 top=0; } ;;
+		q|Q|esc)
+			if [ "$changed" = 1 ]; then
+				tui_menu "$T" "THE CHANGES ARE NOT SAVED." "SAVE THEM AND QUIT" "QUIT WITHOUT SAVING" "BACK" || continue
+				case $TUI_RESULT in 1) save_file ;; 3) continue ;; esac
+			fi
+			break ;;
+	esac
+done
+tui_end

@@ -1,0 +1,24 @@
+#!/bin/sh
+# c64-power sleep|reboot|off|logout|lock|can-lock
+#
+# lock = dm-tool lock (lightdm only for now)
+# systemd/elogind don't need root, otherwise doas/sudo (nopass)
+
+case "${1:-}" in
+	logout) exec openbox --exit ;;
+	can-lock) [ -n "${XDG_SEAT_PATH:-}" ] && command -v dm-tool >/dev/null 2>&1; exit ;;
+	lock)
+		[ -n "${XDG_SEAT_PATH:-}" ] && command -v dm-tool >/dev/null 2>&1 && exec dm-tool lock
+		command -v xmessage >/dev/null 2>&1 && xmessage -center "?NO LOCK SCREEN  ERROR (needs the LightDM login manager)" &
+		exit 1 ;;
+	sleep) s=suspend z=zzz ;;
+	reboot) s=reboot z=reboot ;;
+	off) s=poweroff z=poweroff ;;
+	*) echo "c64-power sleep|reboot|off|logout|lock|can-lock" >&2; exit 1 ;;
+esac
+if [ -d /run/systemd/system ] && systemctl "$s" 2>/dev/null; then exit 0; fi
+command -v loginctl >/dev/null 2>&1 && loginctl "$s" 2>/dev/null && exit 0
+command -v $z >/dev/null 2>&1 || z=$s
+for r in doas sudo; do command -v $r >/dev/null 2>&1 && $r -n $z 2>/dev/null && exit 0; done
+command -v xmessage >/dev/null 2>&1 && xmessage -center "?NOT ALLOWED  ERROR (ask your system to let you $s)" &
+exit 1

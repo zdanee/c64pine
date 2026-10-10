@@ -1,0 +1,92 @@
+/* "c64": a flat GTK3 theme in the C64 screen colours + Pet Me 64 2Y.
+   Only in the C64PINE session: c64-session exports GTK_THEME=c64. */
+@import url("resource:///org/gtk/libgtk/theme/Adwaita.css");
+
+@define-color theme_bg_color #2e2c9b;
+@define-color theme_fg_color #706deb;
+@define-color theme_base_color #2e2c9b;
+@define-color theme_text_color #706deb;
+@define-color theme_selected_bg_color #706deb;
+@define-color theme_selected_fg_color #2e2c9b;
+@define-color theme_unfocused_bg_color #2e2c9b;
+@define-color theme_unfocused_fg_color #706deb;
+@define-color theme_unfocused_base_color #2e2c9b;
+@define-color theme_unfocused_text_color #706deb;
+@define-color theme_unfocused_selected_bg_color #706deb;
+@define-color theme_unfocused_selected_fg_color #706deb;
+@define-color insensitive_bg_color #2e2c9b;
+@define-color insensitive_fg_color #7b7b7b;
+@define-color borders #706deb;
+@define-color unfocused_borders #706deb;
+
+* {
+	font-family: "Pet Me 64 2Y";
+	font-size: 12pt;
+	border-radius: 0;
+	box-shadow: none;
+	text-shadow: none;
+	-gtk-icon-shadow: none;
+}
+
+decoration { box-shadow: none; margin: 0; border: none; }
+
+window, dialog, .background, headerbar, toolbar, .toolbar, statusbar, paned, box, grid {
+	background-color: #2e2c9b;
+	background-image: none;
+	color: #706deb;
+}
+
+button {
+	background-image: none;
+	background-color: #2e2c9b;
+	color: #706deb;
+	border: 2px solid #706deb;
+	padding: 2px 8px;
+}
+button:hover { background-color: #45429f; }
+button:active, button:checked { background-color: #706deb; color: #2e2c9b; }
+button:disabled { color: #7b7b7b; border-color: #706deb; }
+toolbar button, .toolbar button { border-color: transparent; }
+toolbar button:hover, .toolbar button:hover { border-color: #706deb; }
+
+entry, spinbutton {
+	background-image: none;
+	background-color: #2e2c9b;
+	color: #706deb;
+	border: 2px solid #706deb;
+	padding: 2px 4px;
+}
+entry:focus, spinbutton:focus { border-color: #706deb; }
+entry selection, label selection { background-color: #706deb; color: #2e2c9b; }
+
+.view, treeview.view, iconview, textview text, list, row {
+	background-color: #2e2c9b;
+	color: #706deb;
+}
+.view:selected, treeview.view:selected, iconview:selected, row:selected, .view:selected:focus {
+	background-color: #706deb;
+	color: #2e2c9b;
+}
+treeview.view:hover, row:hover { background-color: #45429f; }
+treeview header button { border-width: 0 0 2px 0; border-color: #706deb; }
+
+scrollbar, scrollbar trough { background-color: #2e2c9b; border: none; }
+scrollbar slider { background-color: #706deb; min-width: 10px; min-height: 10px; border: none; }
+scrollbar slider:hover { background-color: #706deb; }
+
+menu, .menu, .popup, popover, tooltip {
+	background-color: #2e2c9b;
+	color: #706deb;
+	border: 2px solid #706deb;
+}
+menuitem:hover, modelbutton:hover { background-color: #706deb; color: #2e2c9b; }
+separator { background-color: #706deb; }
+
+paned > separator { background-color: #706deb; }
+notebook > header { background-color: #2e2c9b; border-color: #706deb; }
+notebook > header tab:checked { background-color: #706deb; color: #2e2c9b; }
+
+menubar { background-color: #2e2c9b; border-bottom: 2px solid #706deb; }
+menubar > menuitem { padding: 2px 10px; }
+menubar > menuitem:hover { background-color: #706deb; color: #2e2c9b; }
+menu menuitem { padding: 2px 10px; }

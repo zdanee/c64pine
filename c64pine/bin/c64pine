@@ -1,0 +1,23 @@
+#!/bin/sh
+# c64pine info | uninstall | update
+: "${C64PINE:=$HOME/.c64pine}"
+A=$C64PINE
+case "${1:-info}" in
+	uninstall)
+		[ -x "$A/lib/installer/c64pine-install" ] || { echo "?NO INSTALLER IN $A/lib  ERROR"; exit 1; }
+		# run from a copy, the original gets deleted
+
+		t=$(mktemp -d "${TMPDIR:-/tmp}/c64pine-un.XXXXXX")
+		cp -r "$A/lib/installer" "$t/"
+		C64PINE=$A exec "$t/installer/c64pine-install" --uninstall ;;
+	update)
+		curl -fsSL https://raw.githubusercontent.com/zdanee/c64pine/main/get.sh | sh ;;
+	info|*)
+		M=$A/install/manifest
+		[ -f "$M" ] || { echo "No install record in $A/install."; exit 1; }
+		echo "C64PINE $(cat "$A/lib/VERSION" 2>/dev/null), in $A"
+		sed -n 's/^installed /installed: /p' "$M"
+		echo "files outside it:"; sed -n 's/^file-added /  /p' "$M"
+		n=$(grep -c '^pkg-added ' "$M"); echo "packages it installed: $n (c64pine uninstall can remove them)"
+		echo "commands: c64pine info | uninstall | update" ;;
+esac

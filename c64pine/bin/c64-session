@@ -1,0 +1,78 @@
+#!/bin/sh
+: "${C64PINE:=$HOME/.c64pine}"
+#
+# C64PINE session (login manager or startx)
+#
+# The XDG dirs point into ~/.c64pine for this session only, so nothing in
+# here touches your normal config.
+#
+: "${C64PINE:=$HOME/.c64pine}"
+REAL_CONFIG=${XDG_CONFIG_HOME:-$HOME/.config}
+export C64PINE WM=openbox
+export XDG_CONFIG_HOME="$C64PINE/config" XDG_DATA_HOME="$C64PINE/data" XDG_CACHE_HOME="$C64PINE/cache"
+export XDG_STATE_HOME="$C64PINE/state" XDG_CURRENT_DESKTOP=C64PINE XDG_SESSION_DESKTOP=c64pine DESKTOP_SESSION=c64pine
+# keyfile instead of dconf, keeps gtk settings away from your other desktops
+export GSETTINGS_BACKEND=keyfile
+
+export GTK_THEME=c64
+export PATH="$C64PINE/bin:$PATH"
+[ -n "${BROWSER:-}" ] || for b in librewolf firefox firefox-esr chromium chromium-browser falkon epiphany-browser; do command -v $b >/dev/null && { export BROWSER=$b; break; }; done
+[ -n "${XDG_RUNTIME_DIR:-}" ] || { export XDG_RUNTIME_DIR="/tmp/runtime-$(id -u)"; mkdir -p -m 700 "$XDG_RUNTIME_DIR"; }
+mkdir -p "$C64PINE/cache/c64" "$C64PINE/state" "$C64PINE/Desktop" "$C64PINE/c64" "$C64PINE/ss" "$C64PINE/rec"
+# use the real trash, or uninstalling would delete whatever is in it
+if [ ! -e "$XDG_DATA_HOME/Trash" ]; then mkdir -p "$HOME/.local/share/Trash"; ln -s "$HOME/.local/share/Trash" "$XDG_DATA_HOME/Trash"; fi
+
+
+# ~/C64pine-* links, only once (if the user deletes one it stays deleted)
+if [ ! -e "$C64PINE/config/c64/home-links" ]; then
+	for l in Desktop:Desktop C64Disk:c64 Screenshots:ss Recordings:rec; do
+		n="$HOME/C64pine-${l%%:*}"
+		t="$C64PINE/${l#*:}"
+		case $t in "$HOME"/*) t=${t#"$HOME"/} ;; esac       # relative, survives the ISO's user rename
+		[ -e "$n" ] || [ -L "$n" ] || ln -s "$t" "$n"
+	done
+	touch "$C64PINE/config/c64/home-links"
+fi
+
+# same user dirs as everywhere, except Desktop
+{ grep -v '^XDG_DESKTOP_DIR=' "$REAL_CONFIG/user-dirs.dirs" 2>/dev/null; echo 'XDG_DESKTOP_DIR="$HOME/.c64pine/Desktop"'; } \
+	> "$XDG_CONFIG_HOME/user-dirs.dirs"
+
+xrdb "$XDG_CONFIG_HOME/c64/Xresources"
+c64-display --restore
+xsetroot -solid '#706deb'
+
+# VM? spice clipboard + resize
+grep -qi -e qemu -e kvm /sys/class/dmi/id/sys_vendor 2>/dev/null && command -v spice-vdagent >/dev/null && spice-vdagent &
+
+# dbus + sound, unless the system already did it
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && command -v dbus-launch >/dev/null; then
+	eval "$(dbus-launch --sh-syntax --exit-with-session)"
+fi
+
+if systemctl --user list-unit-files 'pipewire*' 2>/dev/null | grep -q '^pipewire'; then
+	systemctl --user start pipewire.service pipewire-pulse.service wireplumber.service >/dev/null 2>&1 &
+elif ! pgrep -u "$(id -u)" -x pipewire >/dev/null 2>&1 && ! pgrep -u "$(id -u)" -x pulseaudio >/dev/null 2>&1; then
+	if [ -x /usr/libexec/pipewire-launcher ]; then /usr/libexec/pipewire-launcher &
+	elif command -v pipewire >/dev/null; then
+		pipewire & sleep 0.5
+		command -v wireplumber >/dev/null && wireplumber &
+		command -v pipewire-pulse >/dev/null && pipewire-pulse &
+	fi
+fi
+# lots of cards come up muted / at 0
+[ -e "$XDG_CONFIG_HOME/c64/volume-set" ] || ( sleep 6; c64-volume set 60 && touch "$XDG_CONFIG_HOME/c64/volume-set" ) &
+c64-display --wm
+# mime types for .d64 .prg etc
+m="$XDG_DATA_HOME/mime"
+[ -f "$m/packages/c64.xml" ] && [ ! "$m/mime.cache" -nt "$m/packages/c64.xml" ] && update-mime-database "$m" 2>/dev/null
+rm -f "$XDG_CACHE_HOME/c64/colors.applied"   # xrdb was reset above
+# respawn c64desk if it crashes (xset q fails once X is gone)
+( while ! c64desk && xset q >/dev/null 2>&1; do sleep 1; done ) &
+# compositor last
+[ "$(cat "$XDG_CONFIG_HOME/c64/crt" 2>/dev/null)" = off ] || ( sleep 2; c64-crt start ) &
+openbox
+
+# session over, take our process group with us (startx does this by itself)
+
+if [ "$(cut -d' ' -f5 /proc/$$/stat 2>/dev/null)" = "$$" ]; then trap '' TERM; kill -TERM 0 2>/dev/null; fi

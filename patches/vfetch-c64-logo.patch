@@ -1,0 +1,63 @@
+diff --color -ru -x .git -x vfetch -x '*.o' a/vfetch.c b/vfetch.c
+--- a/vfetch.c	2026-09-19 21:53:54.859411214 +0200
++++ b/vfetch.c	2026-10-06 00:42:09.373630445 +0200
+@@ -1149,6 +1149,12 @@
+   while (*s)
+   {
+     unsigned char c = (unsigned char)*s;
++    if (c == 0x1b && s[1] == '[') {          /* c64: skip colour codes (multicolour logos) */
++      s += 2;
++      while (*s && !(*s >= 0x40 && *s <= 0x7e)) s++;
++      if (*s) s++;
++      continue;
++    }
+     if ((c & 0xC0) != 0x80) width++;
+     s++;
+   }
+diff --color -ru -x .git -x vfetch -x '*.o' a/vlogos.h b/vlogos.h
+--- a/vlogos.h	2026-09-19 21:53:54.859411214 +0200
++++ b/vlogos.h	2026-10-06 00:42:09.385626639 +0200
+@@ -1,6 +1,7 @@
+ #define SPACING 1 // Spacing between logo and text
+ 
+ const char *alpine[];
++const char *c64[];
+ const char *nixos[];
+ const char *nixos_alt[];
+ const char *arch[];
+@@ -44,7 +45,8 @@
+ // Edit this to set custom default logo or changing the logo color.
+ Distro distro_logos[] =
+ {
+-    { "alpine",     alpine,     0, 0, CYAN   },
++    { "alpine",     c64,        0, 0, BLUE   },   /* c64: the Commodore logo */
++    { "c64",        c64,        0, 0, BLUE   },
+     { "nixos",      nixos,      0, 0, BLUE   },
+     { "nixos_alt",  nixos_alt,  0, 0, BLUE   },
+     { "arch",       arch,       0, 0, CYAN   },
+@@ -480,3 +482,25 @@
+   "",
+ NULL
+ };
++
++const char *c64[] = {
++  "    \x1b[97m\u2584\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588            \x1b[34m ",
++  "  \x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588            \x1b[34m ",
++  "\x1b[97m\u2584\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2580     \x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2580\x1b[34m ",
++  "\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588       \x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2588\x1b[34m\u2580  \x1b[34m ",
++  "\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588       \x1b[91m\u2584\x1b[91m\u2584\x1b[91m\u2584\x1b[91m\u2584\x1b[91m\u2584\x1b[91m\u2584\x1b[91m\u2584\x1b[91m\u2584   \x1b[34m ",
++  "\x1b[97m\u2580\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2584     \x1b[91m\u2588\x1b[91m\u2588\x1b[91m\u2588\x1b[91m\u2588\x1b[91m\u2588\x1b[91m\u2588\x1b[91m\u2588\x1b[91m\u2588\x1b[91m\u2588\x1b[91m\u2584 \x1b[34m ",
++  "  \x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588 \x1b[91m\u2580\x1b[91m\u2580\x1b[91m\u2580\x1b[91m\u2580\x1b[91m\u2580\x1b[91m\u2580\x1b[91m\u2580\x1b[91m\u2580\x1b[91m\u2580\x1b[91m\u2580\x1b[91m\u2580\x1b[34m ",
++  "    \x1b[97m\u2580\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588\x1b[97m\u2588            \x1b[34m ",
++  "\x1b[34m ",
++  "\x1b[97m**** C64PINE ****\x1b[34m ",
++  "\x1b[34m ",
++  "\x1b[34m ",
++  "\x1b[34m ",
++  "\x1b[34m ",
++  "\x1b[34m ",
++  "\x1b[34m ",
++  "\x1b[34m ",
++  "\x1b[34m ",
++NULL
++};

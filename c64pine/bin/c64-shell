@@ -1,0 +1,15 @@
+#!/bin/sh
+: "${C64PINE:=$HOME/.c64pine}"
+# your normal login shell + READY. prompt and the banner on top
+# (doesn't touch your rc files)
+
+: "${C64PINE:=$HOME/.c64pine}"
+S="$C64PINE/config/c64/shell"
+sh_=${SHELL:-/bin/sh}
+case "${sh_##*/}" in
+	bash) exec "$sh_" --rcfile "$S/bashrc" -i ;;
+	zsh) ZDOTDIR="$S/zsh" exec "$sh_" -i ;;
+	fish) exec "$sh_" -i -C "source '$S/c64.fish'" ;;
+	ash|sh|dash|ksh|mksh|busybox) ENV="$S/ashrc" exec "$sh_" -i ;;
+	*) exec "$sh_" -i ;;
+esac

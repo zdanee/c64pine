@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=MONITOR
+Exec=sh -c "c64-term -e htop"
+TryExec=htop
+Icon=tasks
+X-C64-Order=80

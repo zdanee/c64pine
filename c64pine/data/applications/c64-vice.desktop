@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=C64 EMULATOR
+Comment=Load and run it in VICE (c64-run)
+Exec=c64-run %f
+Icon=floppy
+NoDisplay=true
+MimeType=application/x-c64-program;application/x-commodore-basic;application/x-commodore-d64-disk;application/x-commodore-g64-disk;application/x-commodore-d71-disk;application/x-commodore-g71-disk;application/x-commodore-d81-disk;application/x-commodore-x64-disk;application/x-commodore-tape;application/x-commodore-crt;

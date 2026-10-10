@@ -1,0 +1,16 @@
+#!/bin/sh
+# c64-music [FILE...]  cmus in a terminal, .sid goes to vsid
+
+for f; do case "$f" in *.[sS][iI][dD]) exec env GTK_THEME=c64 vsid "$f" ;; esac; done
+running() { cmus-remote -Q >/dev/null 2>&1; }
+if running; then
+	xdotool search --class '^MUSIC$' windowactivate 2>/dev/null
+else
+	setsid c64-term -c MUSIC -t MUSIC -e cmus >/dev/null 2>&1 &
+	i=0
+	while ! running && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+fi
+[ $# -gt 0 ] || exit 0
+first=$(realpath "$1"); shift
+cmus-remote -C "player-play $first" 2>/dev/null || cmus-remote -f "$first"
+for f; do cmus-remote -q "$(realpath "$f")"; done

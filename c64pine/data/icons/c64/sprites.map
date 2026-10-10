@@ -1,0 +1,31 @@
+# THEME-ICON SPRITE: the icon theme's pictures are these sprites (data/c64/sprites/SPRITE.png), at 24,
+# 48 and 96 pixels. c64desk renews them when a sprite is saved in the icon editor (c64desk --icons: all).
+places/folder folder
+places/user-home folder
+places/user-desktop folder
+places/folder-documents folder
+places/folder-download folder
+places/folder-pictures folder
+places/user-trash floppy
+places/drive-harddisk drive
+places/network-workgroup globe
+mimetypes/text-x-generic doc
+mimetypes/application-x-generic doc
+mimetypes/unknown doc
+mimetypes/text-x-script doc
+mimetypes/image-x-generic picture
+mimetypes/application-x-executable program
+mimetypes/x-office-document writer
+mimetypes/x-office-spreadsheet calc
+mimetypes/audio-x-generic music
+mimetypes/video-x-generic video
+mimetypes/application-pdf pdf
+mimetypes/package-x-generic archive
+mimetypes/application-x-archive archive
+mimetypes/application-zip archive
+mimetypes/application-x-compressed-tar archive
+mimetypes/application-x-7z-compressed archive
+mimetypes/application-vnd.rar archive
+apps/utilities-terminal terminal
+apps/system-file-manager floppy
+apps/web-browser globe

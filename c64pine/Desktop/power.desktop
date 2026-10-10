@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=POWER
+Exec=c64-power off
+Icon=power
+X-C64-Order=120

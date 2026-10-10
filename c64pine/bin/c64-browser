@@ -1,0 +1,9 @@
+#!/bin/sh
+# $BROWSER or whatever is installed
+
+[ -n "${BROWSER:-}" ] && exec "$BROWSER" "$@"
+for b in librewolf firefox firefox-esr chromium chromium-browser falkon epiphany-browser; do
+	command -v $b >/dev/null 2>&1 && exec $b "$@"
+done
+xmessage -center "?NO BROWSER INSTALLED  ERROR" 2>/dev/null
+exit 1

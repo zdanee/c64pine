@@ -1,0 +1,51 @@
+#!/bin/sh
+# LOAD"*",8,1 / alt+space
+# dmenu over the [LOAD] section of config/c64/menus, submenus become "SUB: ENTRY"
+: "${C64PINE:=$HOME/.c64pine}"
+[ -f "$C64PINE/config/scale.env" ] && . "$C64PINE/config/scale.env"
+M="$C64PINE/config/c64/menus"
+
+# prints LABEL<tab>command
+section() {
+	awk -v want="[$1]" '
+		/^#/ { next }
+		/^\[/ { on = index($0, want) == 1; next }
+		!on || /^[[:space:]]*$/ { next }
+		{
+			match($0, /^ */); lvl = int(RLENGTH / 2); t = substr($0, RLENGTH + 1)
+			sub(/[[:space:]]+$/, "", t)
+			if (t ~ />$/) { name = t; sub(/[[:space:]]*>$/, "", name); stack[lvl] = name; depth[lvl] = 1; next }
+			pre = ""; for (i = 0; i < lvl; i++) if (stack[i] != "") pre = pre stack[i] ": "
+			if (t ~ /^@/) { print "@" substr(t, 2); next }
+			k = index(t, " = "); if (!k) next
+			print pre substr(t, 1, k - 1) "\t" substr(t, k + 3)
+		}' "$M"
+}
+installed() {   # same logic as cmd_installed() in menus.c
+	set -- $(echo "$1" | tr -d "\"'")
+	while :; do
+		case "${1:-}" in
+			env) shift ;;
+			*=*) shift ;;
+			sh) [ "${2:-}" = -c ] && shift 2 || break ;;
+			c64-term) [ "${2:-}" = -e ] && shift 2 || break ;;
+			*) break ;;
+		esac
+	done
+	[ -z "${1:-}" ] || command -v "$1" >/dev/null 2>&1
+}
+list() {
+	section LOAD | while IFS= read -r l; do
+		case "$l" in
+			@programs) section PROGRAMS | grep -v '^@' ;;
+			@*) ;;
+			*) echo "$l" ;;
+		esac
+	done | while IFS="$(printf '\t')" read -r n e; do
+		[ -n "$e" ] && installed "$e" && printf '%s\t%s\n' "$n" "$e"
+	done
+}
+L=$(list)
+c=$(printf '%s\n' "$L" | cut -f1 | dmenu -i -l 12 -z $(( 400 * ${SCALE_PCT:-100} / 100 )) -p 'LOAD"') || exit 0
+e=$(printf '%s\n' "$L" | awk -F'\t' -v n="$c" '$1 == n { print $2; exit }')
+[ -n "$e" ] && exec sh -c "$e"

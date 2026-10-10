@@ -1,0 +1,8 @@
+#!/bin/sh
+# c64-root ARGS  ->  doas/sudo c64-sys ARGS   (nopass rule comes from the installer)
+
+H=/usr/local/sbin/c64-sys
+[ -x $H ] || { echo "?NOT INSTALLED: THE INSTALLER'S ROOT HELPER PART"; exit 1; }
+command -v sudo >/dev/null 2>&1 && sudo -n -l $H >/dev/null 2>&1 && exec sudo -n $H "$@"
+command -v doas >/dev/null 2>&1 && exec doas -n $H "$@"
+echo "?NO DOAS OR SUDO  ERROR"; exit 1

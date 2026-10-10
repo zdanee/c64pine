@@ -1,0 +1,160 @@
+#!/bin/sh
+: "${C64PINE:=$HOME/.c64pine}"
+# C64 LIBRARY scraper: covers, screenshots, text from wikipedia/wikidata
+# everything goes into FOLDER/.cdb (tar). SET values (set_*, NAME.set*) are
+# never overwritten by scraping
+#   c64-lib scrape DIR [FILE] [--force]
+#   c64-lib set DIR FILE
+#   c64-lib search DIR FILE
+
+UA="C64PINE-library/1.1 (personal desktop; https://github.com/zdanee/c64pine)"
+EXT='\.(d64|g64|d71|g71|d81|x64|t64|tap|prg|c64|p00|crt)$'
+cmd=${1:-}; DIR=${2:-}
+[ -d "$DIR" ] || { sed -n '6,8p' "$0"; exit 1; }
+shift 2
+DIR=$(realpath "$DIR")
+
+mkdir -p "$C64PINE/cache/c64"
+exec 9>"$C64PINE/cache/c64/cdb.lock"
+flock 9                                          # only one writer per .cdb
+W=$(mktemp -d)
+trap 'rm -rf "$W"' EXIT
+[ -f "$DIR/.cdb" ] && tar -xf "$DIR/.cdb" -C "$W" 2>/dev/null
+pack() { (cd "$W" && tar -cf "$DIR/.cdb.tmp" .) && mv "$DIR/.cdb.tmp" "$DIR/.cdb"; }
+get() { sed -n "s/^$2=//p" "$W/$1.info" 2>/dev/null | tail -1; }
+put() {         # FILE KEY VALUE
+	v=$(printf '%s' "$3" | tr '\n\r\t' '   ')
+	{ grep -v "^$2=" "$W/$1.info" 2>/dev/null; printf '%s=%s\n' "$2" "$v"; } > "$W/.tmp" && mv "$W/.tmp" "$W/$1.info"
+}
+uri() { jq -rn --arg s "$1" '$s|@uri'; }
+norm() { printf '%s' "$1" | sed 's/([^)]*)//g' | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9'; }
+fetch() { curl -fsSL -m 20 -A "$UA" "$1"; }
+menu() { [ -f "$C64PINE/config/scale.env" ] && . "$C64PINE/config/scale.env"; dmenu -i -l 12 -z $(( 640 * ${SCALE_PCT:-100} / 100 )) -p "$1"; }
+
+# names to try: cleaned up file name + the disk/tape name from the image
+names() {
+	f=$1 p="$DIR/$1"
+	printf '%s\n' "${f%.*}" | sed 's/[_.]/ /g; s/([^)]*)//g; s/\[[^]]*\]//g; s/-/ /g' |
+		sed 's/ [Ss][Ii][Dd][Ee] *[A-Za-z0-9]*$//; s/ [Dd][Ii][Ss][KkCc] *[0-9A-Za-z]*$//; s/ [Vv]*[0-9][0-9.]*$//; s/  */ /g; s/^ //; s/ $//'
+	case "$(printf '%s' "$f" | tr '[:upper:]' '[:lower:]')" in
+		*.d64) dd if="$p" bs=1 skip=91536 count=16 2>/dev/null ;;      # 18/0 + $90 = disk name
+		*.t64) dd if="$p" bs=1 skip=40 count=24 2>/dev/null; echo; dd if="$p" bs=1 skip=80 count=16 2>/dev/null ;;
+	esac | tr -c 'A-Za-z0-9 \n' ' ' | sed 's/  */ /g; s/^ //; s/ $//'
+}
+
+
+
+# wikipedia search -> summary json of the best match that's a video game
+article() {
+	q=$1 nq=$(norm "$1")
+	[ ${#nq} -ge 3 ] || return 1
+	res=$(fetch "https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=6&srsearch=$(uri "$q video game")") || return 1
+	printf '%s' "$res" | jq -r '.query.search[]?.title' | while read -r t; do
+		nt=$(norm "$t")
+		case "$nt" in "$nq"|"$nq"*) ;; *) continue ;; esac
+		[ "$nt" = "$nq" ] || [ ${#nq} -ge 6 ] || continue
+		s=$(fetch "https://en.wikipedia.org/api/rest_v1/page/summary/$(uri "$t" | sed 's/%20/_/g')") || continue
+		printf '%s' "$s" | jq -r '(.description // "") + " " + (.extract // "")' | grep -qi 'video game' || continue
+		printf '%s\n' "$s"
+		break
+	done | head -c 200000
+}
+
+scrape_one() {
+	f=$1
+	s=""
+	names "$f" | awk 'NF && !seen[$0]++' > "$W/.names"
+	while read -r n; do
+		s=$(article "$n")
+		[ -n "$s" ] && break
+	done < "$W/.names"
+	rm -f "$W/.names"
+	if [ -z "$s" ]; then
+		put "$f" tried "$(date +%Y-%m-%d)"
+		echo "$f: not found"
+		return
+	fi
+	title=$(printf '%s' "$s" | jq -r '.title')
+	wtitle=$title
+	title=$(printf '%s' "$title" | sed 's/ ([^)]*game[^)]*)$//')
+	put "$f" title "$title"
+	put "$f" text "$(printf '%s' "$s" | jq -r '.extract // ""' | head -c 1100)"
+	put "$f" source "$(printf '%s' "$s" | jq -r '.content_urls.desktop.page // ""')"
+	put "$f" recognized 1
+	cover=$(printf '%s' "$s" | jq -r '.thumbnail.source // ""')
+	[ -n "$cover" ] && fetch "$cover" > "$W/$f.cover" || rm -f "$W/$f.cover"
+	# year + developer (wikidata)
+	q=$(printf '%s' "$s" | jq -r '.wikibase_item // ""')
+	year="" author=""
+	if [ -n "$q" ] && wd=$(fetch "https://www.wikidata.org/wiki/Special:EntityData/$q.json"); then
+		year=$(printf '%s' "$wd" | jq -r --arg q "$q" '[.entities[$q].claims.P577[]?.mainsnak.datavalue.value.time] | sort | .[0] // ""' | cut -c2-5)
+		ids=$(printf '%s' "$wd" | jq -r --arg q "$q" '[.entities[$q].claims.P178[]?.mainsnak.datavalue.value.id] | .[0:3] | join("|")')
+		[ -n "$ids" ] && author=$(fetch "https://www.wikidata.org/w/api.php?action=wbgetentities&props=labels&languages=en&format=json&ids=$(uri "$ids")" |
+			jq -r '[.entities[].labels.en.value // empty] | join(", ")')
+	fi
+	[ -n "$year" ] || year=$(printf '%s' "$s" | jq -r '.extract // ""' | grep -oE '(19[7-9][0-9]|20[0-2][0-9])' | head -1)
+	put "$f" year "$year"
+	put "$f" author "$author"
+	# screenshot = an image of the article with "c64"/"commodore" or "screenshot" in the name
+	cname=$(basename "$(printf '%s' "$s" | jq -r '.originalimage.source // ""')" | tr '[:upper:]' '[:lower:]')
+	imgs=$(fetch "https://en.wikipedia.org/w/api.php?action=query&prop=images&imlimit=50&format=json&titles=$(uri "$wtitle")" |
+		jq -r '.query.pages[]?.images[]?.title' | grep -viE '\.svg$|logo|icon|cover|box ?art')
+	shot=$(printf '%s\n' "$imgs" | grep -iE 'c64|commodore' | head -1)
+	[ -n "$shot" ] || shot=$(printf '%s\n' "$imgs" | grep -iE 'screenshot|gameplay|screen' | head -1)
+	rm -f "$W/$f.screen"
+	if [ -n "$shot" ] && ! printf '%s' "$shot" | tr '[:upper:]' '[:lower:]' | sed 's/ /_/g' | grep -qF "${cname#*:}"; then
+		url=$(fetch "https://en.wikipedia.org/w/api.php?action=query&prop=imageinfo&iiprop=url&iiurlwidth=480&format=json&titles=$(uri "$shot")" |
+			jq -r '.query.pages[]?.imageinfo[0] | (.thumburl // .url // "")')
+		[ -n "$url" ] && fetch "$url" > "$W/$f.screen" || rm -f "$W/$f.screen"
+	fi
+	sed -i '/^tried=/d' "$W/$f.info"
+	echo "$f: $title ($year)"
+}
+
+case "$cmd" in
+scrape)
+	only="" force=0
+	for a; do case "$a" in --force) force=1 ;; *) only=$a ;; esac; done
+	# offline -> don't mark it as not found
+
+	curl -fsS -m 15 -o /dev/null -A "$UA" "https://en.wikipedia.org/w/api.php?action=query&format=json" || { echo "no network"; exit 0; }
+	ls -1 "$DIR" | grep -iE "$EXT" | while read -r f; do
+		[ -z "$only" ] || [ "$f" = "$only" ] || continue
+		[ $force = 1 ] || [ ! -f "$W/$f.info" ] || continue
+		scrape_one "$f"
+		pack
+	done
+	exit 0 ;;
+search)
+	f=${1:?FILE}
+	src=$(get "$f" source)
+	[ -n "$src" ] || src="https://www.c64-wiki.com/index.php?search=$(uri "$(get "$f" set_title)${f%.*}")"
+	xdg-open "$src" >/dev/null 2>&1 &
+	exit 0 ;;
+set)
+	f=${1:?FILE}
+	pictures() { find "$HOME" -maxdepth 5 -path "$HOME/.*" -prune -o -type f -print 2>/dev/null | grep -iE '\.(jpe?g|png|gif|bmp)$' | sort | sed "s|^$HOME|~|"; }
+	while :; do
+		v() { x=$(get "$f" "set_$1"); [ -n "$x" ] && echo "$x" || get "$f" "$1"; }
+		c=$( {
+			echo "TITLE: $(v title)"; echo "YEAR: $(v year)"; echo "AUTHOR: $(v author)"; echo "TEXT: $(v text | cut -c1-60)"
+			echo "COVER PICTURE..."; echo "SCREENSHOT..."; echo "FORGET MY CHANGES"; echo "DONE"
+		} | menu "SET $f") || break
+		case "$c" in
+			TITLE*|YEAR*|AUTHOR*|TEXT*)
+				k=$(echo "${c%%:*}" | tr '[:upper:]' '[:lower:]')
+				n=$(v "$k" | menu "$(echo "$k" | tr '[:lower:]' '[:upper:]'):") && put "$f" "set_$k" "$n" ;;
+			COVER*|SCREEN*)
+				p=$(pictures | menu 'PICTURE (OR TYPE A PATH):') || continue
+				case "$p" in "~"*) p="$HOME${p#\~}" ;; esac
+				[ -f "$p" ] || continue
+				case "$c" in COVER*) cp "$p" "$W/$f.setcover" ;; *) cp "$p" "$W/$f.setscreen" ;; esac ;;
+			FORGET*) sed -i '/^set_/d' "$W/$f.info" 2>/dev/null; rm -f "$W/$f.setcover" "$W/$f.setscreen" ;;
+			*) break ;;
+		esac
+		pack
+	done
+	pack
+	exit 0 ;;
+*) sed -n '6,8p' "$0"; exit 1 ;;
+esac

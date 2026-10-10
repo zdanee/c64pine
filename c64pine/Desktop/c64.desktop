@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=C64
+Exec=c64-run
+TryExec=x64sc
+Icon=c64
+X-C64-Order=20

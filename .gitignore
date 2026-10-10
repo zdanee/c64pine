@@ -1,0 +1,5 @@
+work/
+*.iso
+*.qcow2
+c64desk/*.o
+c64desk/c64desk

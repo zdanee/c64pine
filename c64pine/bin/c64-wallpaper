@@ -1,0 +1,84 @@
+#!/bin/sh
+: "${C64PINE:=$HOME/.c64pine}"
+# wallpaper settings, c64desk does the actual drawing (wallpaper.c)
+#
+#   c64-wallpaper                           menu
+#   c64-wallpaper set FILE                  jpg png bmp gif
+#   c64-wallpaper slideshow DIR [MINUTES]   default 10 min
+#   c64-wallpaper next
+#   c64-wallpaper border auto|keep|0-15
+#   c64-wallpaper dither on|off
+#   c64-wallpaper off
+#
+# writes config/c64/wallpaper
+CONF="$C64PINE/config/c64/wallpaper"
+NAMES="BLACK WHITE RED CYAN PURPLE GREEN BLUE YELLOW ORANGE BROWN LIGHT-RED DARK-GREY GREY LIGHT-GREEN LIGHT-BLUE LIGHT-GREY"
+
+get() { sed -n "s/^$1=//p" "$CONF" 2>/dev/null | tail -1; }
+put() {
+	mkdir -p "${CONF%/*}"
+	{ grep -v "^$1=" "$CONF" 2>/dev/null; echo "$1=$2"; } > "$CONF.tmp" && mv "$CONF.tmp" "$CONF"
+}
+apply() { pkill -HUP -x c64desk; }
+menu() { [ -f "$C64PINE/config/scale.env" ] && . "$C64PINE/config/scale.env"; dmenu -i -l 16 -z $(( 600 * ${SCALE_PCT:-100} / 100 )) -p "$1"; }
+pictures() {    # all images under ~, skips hidden dirs
+	find "$HOME" -maxdepth 5 -path "$HOME/.*" -prune -o -type f -print 2>/dev/null | grep -iE '\.(jpe?g|png|bmp|gif)$' |
+		sort | sed "s|^$HOME|~|"
+}
+untilde() { case "$1" in "~"*) echo "$HOME${1#\~}" ;; *) echo "$1" ;; esac; }
+
+set_picture() {
+	f=$(realpath "$(untilde "$1")" 2>/dev/null) && [ -f "$f" ] || { echo "no such picture: $1" >&2; exit 1; }
+	put image "$f"; put slideshow ""; apply
+}
+set_slideshow() {
+	d=$(realpath "$(untilde "$1")" 2>/dev/null) && [ -d "$d" ] || { echo "no such folder: $1" >&2; exit 1; }
+	put slideshow "$d"; [ -n "${2:-}" ] && put minutes "$2"
+	rm -f "$C64PINE/cache/c64/slideshow.pos"; apply
+}
+set_border() {
+	case "$1" in auto|keep|[0-9]|1[0-5]) put border "$1"; apply ;; *) echo "border: auto, keep or 0-15" >&2; exit 1 ;; esac
+}
+
+case "${1:-}" in
+	set) set_picture "${2:?FILE}"; exit ;;
+	slideshow) set_slideshow "${2:?DIR}" "${3:-}"; exit ;;
+	next) pkill -USR1 -x c64desk; exit ;;
+	border) set_border "${2:?auto|keep|0-15}"; exit ;;
+	dither) put dither "$([ "${2:-on}" = off ] && echo 0 || echo 1)"; apply; exit ;;
+	off) put image ""; put slideshow ""; apply; exit ;;
+	"") ;;
+	*) sed -n '4,12p' "$0"; exit 1 ;;
+esac
+
+
+# ---- menu ----
+
+b=$(get border); b=${b:-auto}
+case "$b" in auto) bn="AUTO (FROM THE PICTURE)" ;; keep) bn="KEEP (THE DESKTOP'S)" ;; *) bn="$(echo $NAMES | cut -d' ' -f$((b + 1)))" ;; esac
+dith=$([ "$(get dither)" = 0 ] && echo OFF || echo ON)
+now=$(get slideshow); [ -n "$now" ] && now="SLIDESHOW ${now##*/}, $(get minutes) MIN" || now=$(get image); now=${now##*/}
+c=$( {
+	echo "PICTURE..."
+	echo "SLIDESHOW..."
+	[ -n "$(get slideshow)" ] && echo "NEXT PICTURE"
+	echo "BORDER: $bn"
+	echo "DITHER: $dith"
+	echo "NONE (PLAIN SCREEN)"
+} | menu "WALLPAPER ${now:+[$(echo "$now" | tr '[:lower:]' '[:upper:]')]}" )
+case "$c" in
+	PICTURE*)
+		f=$(pictures | menu 'PICTURE (OR TYPE A PATH):') && [ -n "$f" ] && set_picture "$f" ;;
+	SLIDESHOW*)
+		d=$(pictures | sed 's|/[^/]*$||' | uniq | menu 'SLIDESHOW FOLDER:') && [ -n "$d" ] || exit 0
+		m=$(printf '1\n5\n10\n15\n30\n60\n' | menu 'CHANGE EVERY N MINUTES:') && [ -n "$m" ] || exit 0
+		case "$m" in *[!0-9]*) m=10 ;; esac
+		set_slideshow "$d" "$m" ;;
+	NEXT*) pkill -USR1 -x c64desk ;;
+	BORDER*)
+		n=$( { echo "AUTO (FROM THE PICTURE)"; echo "KEEP (THE DESKTOP'S)"; i=0
+		       for x in $NAMES; do echo "$i $x"; i=$((i + 1)); done; } | menu 'BORDER COLOUR:') || exit 0
+		case "$n" in AUTO*) set_border auto ;; KEEP*) set_border keep ;; [0-9]*) set_border "${n%% *}" ;; esac ;;
+	DITHER*) put dither "$([ "$dith" = ON ] && echo 0 || echo 1)"; apply ;;
+	NONE*) put image ""; put slideshow ""; apply ;;
+esac
