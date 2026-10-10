@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Openbox for C64PINE: Pet Me 64 font, theme c64-Nx (tools/gen-assets.py).
+<!-- Openbox for C64PINE: Pet Me 64 font, theme c64-Nx.
      c64desk is the desktop window (Desktop context); its struts keep maximized windows inside the blue screen. -->
 <openbox_config xmlns="http://openbox.org/3.4/rc">
   <resistance><strength>10</strength><screen_edge_strength>20</screen_edge_strength></resistance>

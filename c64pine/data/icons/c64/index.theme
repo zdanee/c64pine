@@ -1,6 +1,6 @@
 [Icon Theme]
 Name=c64
-Comment=8-colour C64 sprites (tools/gen-assets.py)
+Comment=8-colour C64 sprites
 Inherits=Adwaita,hicolor
 Directories=24x24/places,24x24/mimetypes,24x24/apps,48x48/places,48x48/mimetypes,48x48/apps,96x96/places,96x96/mimetypes,96x96/apps
 

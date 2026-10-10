@@ -120,7 +120,6 @@ Write it with `dd` / Rufus "DD image" too: booting it through Ventoy failed on a
 | `greeter/` | `c64pine-greeter`: the C64 login screen for LightDM |
 | `installer/` | `c64pine-install` (install / update / uninstall on any distribution), `tui.sh` (the blue screens, POSIX sh), `packages.list` (what is needed, per package manager), `src/` (source builds) |
 | `get.sh` | the `curl ... \| sh` bootstrap: downloads this repository and starts the installer |
-| `tools/gen-assets.py` | draws the sprites, the Openbox themes and the icon theme into `c64pine/data` (needs Pillow) |
 | `patches/` | vfetch: the Commodore logo |
 | `fonts/` | Pet Me 64 (Kreative Software, see `fonts/FreeLicense.txt`) |
 | `system/` | the login-screen session entry, the root helper `c64-sys`, `make-installer-iso` and what it puts on the ISO: the installer (`install.sh`), `laptop.sh` (image conversion), `hardware.sh` (laptop extras), the laptop help |
