@@ -533,6 +533,7 @@ static void do_autostart(void)
 	prog_mode = 0;
 	sound(1);
 	res_int("Drive8Type", 1541);                         // autostart needs a real drive
+	res_int("AutostartWarp", 1);                         // warp while it loads, VICE turns it off after
 	if (request(0xdd, b, l + 4) < 0) {
 		con_print("?FILE NOT FOUND  ERROR");
 		game = 0;

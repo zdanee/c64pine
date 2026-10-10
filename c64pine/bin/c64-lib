@@ -35,7 +35,8 @@ menu() { [ -f "$C64PINE/config/scale.env" ] && . "$C64PINE/config/scale.env"; dm
 names() {
 	f=$1 p="$DIR/$1"
 	printf '%s\n' "${f%.*}" | sed 's/[_.]/ /g; s/([^)]*)//g; s/\[[^]]*\]//g; s/-/ /g' |
-		sed 's/ [Ss][Ii][Dd][Ee] *[A-Za-z0-9]*$//; s/ [Dd][Ii][Ss][KkCc] *[0-9A-Za-z]*$//; s/ [Vv]*[0-9][0-9.]*$//; s/  */ /g; s/^ //; s/ $//'
+		sed 's/ [Ss][Ii][Dd][Ee] *[A-Za-z0-9]*$//; s/ [Dd][Ii][Ss][KkCc] *[0-9A-Za-z]*$//; s/ [Vv]*[0-9][0-9.]*$//; s/  */ /g; s/^ //; s/ $//' |
+		sed -E 's/ (19[789][0-9]|20[0-9][0-9])( .*)?$//'     # "Name 1983 Publisher" (archive.org style)
 	case "$(printf '%s' "$f" | tr '[:upper:]' '[:lower:]')" in
 		*.d64) dd if="$p" bs=1 skip=91536 count=16 2>/dev/null ;;      # 18/0 + $90 = disk name
 		*.t64) dd if="$p" bs=1 skip=40 count=24 2>/dev/null; echo; dd if="$p" bs=1 skip=80 count=16 2>/dev/null ;;

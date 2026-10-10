@@ -34,7 +34,8 @@ set_res() {
 	{ [ "$w" -ge 320 ] && [ "$w" -le 8192 ] && [ "$h" -ge 200 ] && [ "$h" -le 8192 ]; } 2>/dev/null || return 1
 	o=$(output); m="${w}x${h}"
 	if ! xrandr | grep -q "^ *$m "; then
-		line=$(cvt "$w" "$h" | sed -n 's/^Modeline "[^"]*" *//p')
+		# cvt rounds the width up to a multiple of 8 (1366 -> 1368), put the real width back
+		line=$(cvt "$w" "$h" | sed -n 's/^Modeline "[^"]*" *//p' | awk -v w="$w" '{ if (w < $2) $2 = w; print }')
 		[ -n "$line" ] || return 1
 		xrandr --newmode "$m" $line && xrandr --addmode "$o" "$m" || return 1
 	fi

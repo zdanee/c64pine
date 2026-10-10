@@ -8,53 +8,118 @@ desktop you can type on: shell commands run right there, and anything else goes 
 
 ## What you get
 
-- **The desktop is `~/.c64pine/Desktop`**: apps (`.desktop` files), folders and files as 24x21 sprite icons on a 16 px grid.
-  Drag to move, drop onto a folder to put things inside, drop files from the file manager to make shortcuts.
-  Right-click menus, and a sprite **icon editor** (12 colours). Folders open as **folder windows** with the same
-  icons, classic Mac style (one window per folder, remembered places; drag icons between windows and the desktop).
-- **A command line on the desktop**: click and type. A line goes, in this order, to
-  1. the desktop: `LOAD"TERMINAL",8,1`, `POKE 53280,2` (border colour), `SYS 64738`, `CD`, `CLS` ...
-  2. the shell: `ls`, `cat`, `df` print on the desktop (with colours); `htop`, `mc`, `vim` open a terminal window
-  3. **C64 BASIC** in VICE, out of sight: `10 PRINT "HELLO"`, `RUN`, `LIST`, `SAVE"PROG",8` ... its output appears on
-     the desktop in C64 colours and PETSCII, and programs with graphics open the C64 SCREEN (VICE's own window, the
-     same C64: the C64 icon opens it too; its X sends it back; Alt+D fullscreen; Alt+O VICE's settings).
-- **CRT filter**: scanlines + vignette + rounded tube corners over the whole screen (picom), or only on the desktop.
-- Openbox with a C64 theme, a top bar in the border (`LOAD"*",8,1` menu, 5 virtual desktops, window buttons, battery,
-  network, `TI$` clock) that moves out of the way of windows, the Pet Me 64 font everywhere, st with the power-on
-  banner and a `READY.` prompt, vfetch with the Commodore logo, PCManFM with C64 icons, and VICE.
-- **A wallpaper engine**: any picture (or a folder of them, as a slideshow) shown in the blue screen as 320x200 in
-  the 16 C64 colours, dithered, under the scanlines; the border takes the picture's colour (or one you pick).
-- Media in the same colours: **cmus** (music), **mpv** (video), **nsxiv** (pictures), **zathura** (PDF), and
-  **CAPTURE** (Print): screenshots of the screen, a window or an area, and recordings as video (+ sound, + mic),
-  animated GIF or WebP. The colour presets (C64, C128, VIC-20, SX-64, PET green on black) and POKEs recolour the
-  menus, dmenu, terminals, the file manager and these too.
-- **Your own menus**: the desktop's right-click menu (cascading submenus: PROGRAMS, COLOURS, WALLPAPER, DESKTOPS with
-  their windows), its PROGRAMS list and the `LOAD"*",8,1` finder are one plain file, arranged with the **MENUS** app.
-- **Paste on the desktop** (ctrl+v): copied files land on the desktop; copied text is typed at the prompt, so a
-  BASIC listing from a web page goes straight in.
-- **Icons are 24x21 sprites** (PNG, in the C64 colours): edit them in the built-in icon editor (or any paint
-  program); the system icon theme follows.
-- C64 software: double-click a .d64, .t64, .prg, .c64, .tap or .crt and the same C64 loads and runs it in the C64
-  SCREEN; closing that window ends it and the desktop's C64 comes back. The arrow keys are joystick 1 (fire = right
-  Ctrl).
-- **C64 LIBRARY**: folders with C64 software open as a cover view (covers in C64 colours, screenshot, description,
-  year, author from Wikipedia / Wikidata; RUN, SEARCH, SCRAPE, SET your own).
-- **C64.SAV**: the desktop's BASIC program is kept as a text listing on the desktop and comes back after a reboot.
-- Bar popups: a calendar with reminders and the clock format, a volume slider, power settings with sleep / restart /
-  shut down. Windows can be pinned (on top, every desktop) from the title bar.
-- Archives: double-click extracts zip, rar, 7z, arj, lzh, cab, tar.* (7-Zip, bsdtar, ...); right-click to compress
-  as zip, 7z, tar.gz or tar.xz; xarchiver in the file manager.
-- On laptops: wifi/LAN (NetworkManager, `nmtui`), bluetooth (+ audio), brightness keys, suspend on lid close,
-  touchpad tapping, external screens.
+### A desktop you can type on
+
+Click the desktop and type. A line goes, in this order, to the desktop itself (`LOAD"TERMINAL",8,1`, `POKE 53280,2`,
+`SYS 64738`, `CD`, `CLS` ...), then to your shell (`ls`, `cat`, `df` print right there; `htop`, `mc`, `vim` get a
+terminal window), and everything else to **a real C64 BASIC** running in VICE, out of sight. Programs that draw open
+the **C64 SCREEN** (the same C64 in VICE's window; Alt+D fullscreen, its X sends it back). The BASIC program is kept as
+`C64.SAV` on the desktop and comes back after a reboot.
+
+![BASIC on the desktop, the C64 SCREEN and a shell command](docs/demo/basic.webp)
+
+**Paste** (ctrl+v): copied text is typed at the prompt, so a BASIC listing from a web page goes straight in. Copied
+files land on the desktop.
+
+![A listing copied from the browser, pasted and RUN](docs/demo/clipboard.webp)
+
+### Icons, folders, files
+
+The desktop is a folder, `~/.c64pine/Desktop`: apps, folders and files as 24x21 sprite icons. Drag to move, drop onto
+a folder to put things inside, right-click for NEW FOLDER, NEW TEXT FILE, RENAME, CHANGE ICON ... Folders open as
+folder windows with the same icons, one window per folder, classic Mac style.
+
+![Making a folder and a file, moving, renaming, a new icon](docs/demo/files.webp)
+
+The icons are plain PNG sprites in the C64 colours. Draw your own in the built-in **icon editor** (or any paint
+program): the desktop and the system icon theme follow.
+
+![The icon editor: the floppy gets a green label](docs/demo/icon-editor.webp)
+
+### Windows, desktops and the bar
+
+Openbox with a C64 theme. Super+arrows tile: left / right half of the blue screen, again for half of the whole
+screen; up maximizes; Alt+F is fullscreen.
+
+![Tiling: htop left, a terminal right, maximize, fullscreen](docs/demo/windows.webp)
+
+Five virtual desktops (Alt+1..5, Alt+Shift+1..5 sends a window). A window can be **pinned** from its title bar: on
+top and on every desktop. Handy for a video in the corner.
+
+![Desktops: htop, AbiWord, a picture sent to desktop 2](docs/demo/desktops.webp)
+
+![A video shrunk to the corner, pinned, following you across the desktops](docs/demo/video-pin.webp)
+
+The bar lives in the top border and moves out of the way of windows: `LOAD"*",8,1` finds and starts programs
+(type to search), then the desktops, one button per window, battery and power settings, volume, and the `TI$`
+clock with a calendar.
+
+![The bar: LOAD"*",8,1, power, volume, calendar](docs/demo/bar.webp)
+
+![Three appointments in the calendar](docs/demo/calendar.webp)
+
+### Menus you can arrange
+
+Right-click the desktop (or Super+F12 anywhere) for the desktop menu: PROGRAMS, CAPTURE, COLOURS, WALLPAPER and the
+DESKTOPS with their open windows.
+
+![The desktop menu, and an open app under DESKTOPS](docs/demo/menu.webp)
+
+The menu, its PROGRAMS list and the `LOAD"*",8,1` finder are one plain text file, arranged with the **MENUS** app
+(move, add, remove, submenus).
+
+![The MENUS app](docs/demo/menus-app.webp)
+
+### Colours
+
+Five presets: C64, C128, VIC-20, SX-64 and PET green on black (or `POKE 53280` / `53281` / `646` for any C64 colour).
+They recolour the desktop, the window theme, menus, terminals, GTK apps, mpv, zathura and nsxiv.
+
+![The five presets, each with an app: AbiWord, Gnumeric, PCManFM, LibreWolf, a terminal](docs/demo/themes.webp)
+
+### Apps in the same colours
+
+PCManFM, AbiWord, Gnumeric, **cmus** (music), **mpv** (video), **nsxiv** (pictures), **zathura** (PDF), st with the
+power-on banner and a `READY.` prompt, and vfetch with the Commodore logo.
+
+![File manager, word processor, spreadsheet, music and video](docs/demo/apps.webp)
+
+![vfetch](docs/demo/vfetch.webp)
+
+### C64 software and the C64 LIBRARY
+
+Double-click a .d64, .t64, .prg, .c64, .tap or .crt and the C64 loads and runs it in the C64 SCREEN; closing that
+window ends it. The arrow keys are joystick 1 (fire = right Ctrl). Folders with C64 software open as a **cover view**:
+cover in C64 colours, screenshot, year, author and description from Wikipedia / Wikidata; RUN, SEARCH, SCRAPE, or SET
+your own.
+
+![Wizard of Wor: downloaded, scraped, RUN](docs/demo/library.webp)
+
+### Wallpapers
+
+Any picture, or a folder of them as a slideshow, shown in the blue screen as 320x200 in the 16 C64 colours, dithered
+(or not), under the scanlines; the border can take the picture's colour.
+
+![Vader, then a slideshow: the DeLorean, the Enterprise, dithering off](docs/demo/wallpaper.webp)
+
+### The CRT filter
+
+Scanlines, vignette and rounded tube corners over the whole screen (picom), or only on the desktop. Alt+F12 switches
+it.
+
+![r/unixporn in LibreWolf, the CRT filter off and on](docs/demo/crt.webp)
+
+### And more
+
+- **CAPTURE** (Print): screenshots of the screen, a window or an area; recordings as video (+ sound, + mic),
+  animated GIF or WebP. The clips on this page were made with it.
+- Archives: double-click extracts zip, rar, 7z, arj, lzh, cab, tar.*; right-click to compress.
+- On laptops: wifi/LAN (`nmtui`), bluetooth (+ audio), brightness keys, suspend on lid close, touchpad tapping,
+  external screens.
 - `make-installer-iso`: builds a bootable installer ISO **of your system as it is** (desktop, icons, files included).
 
-F1 shows the full cheat sheet (`c64pine/config/help-openbox.txt`). How much the hidden C64 costs (and when it costs nothing):
-`docs/PERFORMANCE.md`.
-
-| | |
-|---|---|
-| ![BASIC on the desktop](docs/basic.png) | ![The icon editor](docs/editor.png) |
-| ![vfetch](docs/vfetch.png) | ![C64 SCREEN](docs/c64screen.png) |
+F1 shows the full cheat sheet (`c64pine/config/help-openbox.txt`). How much the hidden C64 costs (and when it costs
+nothing): `docs/PERFORMANCE.md`.
 
 ## Install
 

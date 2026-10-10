@@ -161,8 +161,11 @@ void c64ize(const unsigned char *img, int w, int h, int cx, int cy, int cw, int 
 					cnt++;
 				}
 			if (!cnt) cnt = 1;
-			int d = dith ? (bayer[y & 3][x & 3] - 8) * 5 : 0;         // +-40 looked best
-			int r = s[0] / cnt + d, g = s[1] / cnt + d, b = s[2] / cnt + d;
+			int r = s[0] / cnt, g = s[1] / cnt, b = s[2] / cnt;
+			int hi = r > g ? (r > b ? r : b) : (g > b ? g : b), lo = r < g ? (r < b ? r : b) : (g < b ? g : b);
+			// +-40 looked best. not on (almost) black or white: those would get brown / grey dots
+			int d = dith && hi >= 24 && lo <= 232 ? (bayer[y & 3][x & 3] - 8) * 5 : 0;
+			r += d, g += d, b += d;
 			out[(size_t)y * ow + x] = nearest(r < 0 ? 0 : r > 255 ? 255 : r, g < 0 ? 0 : g > 255 ? 255 : g,
 			                                  b < 0 ? 0 : b > 255 ? 255 : b);
 		}
