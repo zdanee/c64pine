@@ -49,6 +49,8 @@ extern Pixmap canvas;
 extern XftDraw *xd;
 extern XftFont *font;
 extern int W, H, P, C, bx, by, cols, rows;
+extern int MX, MY;                            // primary monitor's corner
+int monitor_rect(int px, int py, int *x, int *y, int *w, int *h);
 extern int border_c, screen_c, text_c;
 extern char home[512], a64[512];
 extern int is_editor;

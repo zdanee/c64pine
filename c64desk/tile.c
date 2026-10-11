@@ -165,8 +165,16 @@ int tile_main(const char *dir)
 	if (s) XFree(s);
 	if (st[0] == T_NONE) memcpy(st + 1, cur, sizeof cur);
 
+	// the monitor the window is on. not the primary one: no bar there, borders by the C64's proportions
+	int ox, oy, px0, py0, pw, ph;
+	monitor_rect(cur[0] + cur[2] / 2, cur[1] + cur[3] / 2, &ox, &oy, &sw, &sh);
+	monitor_rect(-1, 0, &px0, &py0, &pw, &ph);
+	if (ox != px0 || oy != py0) {
+		bxx = sw * 32 / 384, byy = sh * 36 / 272, top = 0;
+	}
 
-	int ix = bxx, iy = byy, iw = sw - 2 * bxx, ih = sh - 2 * byy;           // inner (blue) area
+
+	int ix = ox + bxx, iy = oy + byy, iw = sw - 2 * bxx, ih = sh - 2 * byy;           // inner (blue) area
 	int next = st[0];
 	if (!strcmp(dir, "left")) next = st[0] == T_LEFT ? T_LEFT_BIG : T_LEFT;
 	else if (!strcmp(dir, "right")) next = st[0] == T_RIGHT ? T_RIGHT_BIG : T_RIGHT;
@@ -190,10 +198,10 @@ int tile_main(const char *dir)
 	switch (next) {
 	case T_LEFT: place(w, ix, iy, iw / 2, ih); break;
 	case T_RIGHT: place(w, ix + iw - iw / 2, iy, iw / 2, ih); break;
-	case T_LEFT_BIG: place(w, M, top + M, sw / 2 - M - M / 2, sh - top - 2 * M); break;
-	case T_RIGHT_BIG: place(w, sw / 2 + M / 2, top + M, sw - sw / 2 - M - M / 2, sh - top - 2 * M); break;
+	case T_LEFT_BIG: place(w, ox + M, oy + top + M, sw / 2 - M - M / 2, sh - top - 2 * M); break;
+	case T_RIGHT_BIG: place(w, ox + sw / 2 + M / 2, oy + top + M, sw - sw / 2 - M - M / 2, sh - top - 2 * M); break;
 	case T_MAX: wm_state(w, 1, "_NET_WM_STATE_MAXIMIZED_VERT", "_NET_WM_STATE_MAXIMIZED_HORZ"); break;
-	case T_MAX_BIG: place(w, M, top + M, sw - 2 * M, sh - top - 2 * M); break;
+	case T_MAX_BIG: place(w, ox + M, oy + top + M, sw - 2 * M, sh - top - 2 * M); break;
 	case T_NONE: place(w, st[1], st[2], st[3], st[4]); break;
 	}
 	st[0] = next;

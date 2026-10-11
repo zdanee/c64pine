@@ -860,7 +860,9 @@ static void fs_set(int on)
 		a.override_redirect = True;
 		a.background_pixel = PAL[6];
 		a.event_mask = ExposureMask | ButtonPressMask;
-		fsicon = XCreateWindow(dpy, root, DisplayWidth(dpy, scr) - s - 2 * P, 2 * P, s, s, 0, CopyFromParent, InputOutput,
+		int mx, my, mw, mh;
+		monitor_rect(-1, 0, &mx, &my, &mw, &mh);
+		fsicon = XCreateWindow(dpy, root, mx + mw - s - 2 * P, my + 2 * P, s, s, 0, CopyFromParent, InputOutput,
 		                       CopyFromParent, CWOverrideRedirect | CWBackPixel | CWEventMask, &a);
 		XClassHint ch = { "c64desk", "C64desk" };
 		XSetClassHint(dpy, fsicon, &ch);

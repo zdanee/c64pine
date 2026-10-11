@@ -2,7 +2,7 @@
 : "${C64PINE:=$HOME/.c64pine}"
 # the bar (lemonbar) in the top border
 # clicks: lemonbar prints the command, the sh at the end of the pipe runs it
-W=1024 BX=88 BY=104 PX=2 BORDER='#706deb' SCREEN='#2e2c9b' TEXT='#706deb'
+W=1024 MX=0 MY=0 BX=88 BY=104 PX=2 BORDER='#706deb' SCREEN='#2e2c9b' TEXT='#706deb'
 [ -f "$C64PINE/cache/c64/geom" ] && . "$C64PINE/cache/c64/geom"
 H=$(( 10 * PX ))
 Y=$(( (BY - H) / 2 )); [ "$Y" -lt 0 ] && Y=0
@@ -105,5 +105,5 @@ while :; do
 	i=$(( i + 1 ))
 	echo "%{l}%{A:c64-launch &:} LOAD\"*\",8,1 %{A}$(desks)$(tasks)%{r}$REC$NET$BAT$VOL  $DATE  %{A:$P clock &:}$(date "+$CF")%{A} "
 	sleep 0.5
-done | lemonbar -p -a 40 -g "$(( W - 2 * BX ))x$H+$BX+$Y" -f "Pet Me 64 2Y:pixelsize=$(( 8 * PX )):antialias=false" \
+done | lemonbar -p -a 40 -g "$(( W - 2 * BX ))x$H+$(( MX + BX ))+$(( MY + Y ))" -f "Pet Me 64 2Y:pixelsize=$(( 8 * PX )):antialias=false" \
 -n bar -B"$BORDER" -F"$FG" | sh

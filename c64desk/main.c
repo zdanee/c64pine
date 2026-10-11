@@ -206,6 +206,74 @@ void damage(int x, int y, int w, int h)
 
 void damage_all(void) { damage(0, 0, W, H); }
 
+/* ---------- monitors ----------
+ * The desktop lives on the primary monitor (MX,MY = its corner on the root window).
+ * Every other monitor gets a "side screen": border + blue screen + scanlines, nothing else. */
+int MX, MY;
+static Window sides[8];
+static int nsides;
+
+// the monitor containing (px,py), or the primary one if px < 0. 0 = no RandR monitors
+int monitor_rect(int px, int py, int *x, int *y, int *w, int *h)
+{
+	int n = 0, found = 0;
+	XRRMonitorInfo *m = XRRGetMonitors(dpy, root, True, &n);
+	*x = 0, *y = 0, *w = DisplayWidth(dpy, scr), *h = DisplayHeight(dpy, scr);
+	for (int i = 0; m && i < n; i++) {
+		int in = px >= 0 ? px >= m[i].x && px < m[i].x + m[i].width && py >= m[i].y && py < m[i].y + m[i].height
+		                 : m[i].primary;
+		if (in || (!found && i == 0)) {
+			*x = m[i].x, *y = m[i].y, *w = m[i].width, *h = m[i].height;
+			found = 1;
+			if (in) break;
+		}
+	}
+	if (m) XRRFreeMonitors(m);
+	return found ? n : 0;
+}
+
+static void make_sides(void)
+{
+	for (int i = 0; i < nsides; i++) XDestroyWindow(dpy, sides[i]);
+	nsides = 0;
+	int n = 0;
+	XRRMonitorInfo *m = XRRGetMonitors(dpy, root, True, &n);
+	for (int i = 0; m && i < n && nsides < 8; i++) {
+		int x = m[i].x, y = m[i].y, w = m[i].width, h = m[i].height;
+		if (x == MX && y == MY && w == W && h == H) continue;      // that's us
+		int c = (w - 2 * (w * 32 / 384)) / C, r = (h - 2 * (h * 36 / 272)) / C;
+		int sx = (w - c * C) / 2, sy = (h - r * C) / 2;
+		XImage *im = XCreateImage(dpy, vis, depth, ZPixmap, 0, NULL, w, h, 32, 0);
+		im->data = malloc((size_t)im->bytes_per_line * h);
+		for (int yy = 0; yy < h; yy++) {
+			double s = (P > 1 && ((yy - sy) % P + P) % P == P - 1) ? 1 - SCAN : 1;
+			for (int xx = 0; xx < w; xx++) {
+				unsigned long c0 = (xx >= sx && xx < w - sx && yy >= sy && yy < h - sy) ? PAL[screen_c] : PAL[border_c];
+				double dx = 2.0 * xx / (w - 1) - 1, dy = 2.0 * yy / (h - 1) - 1, rr = (dx * dx + dy * dy) / 2;
+				double k = s * (1 - VIG * rr * rr);
+				XPutPixel(im, xx, yy, (unsigned long)((c0 >> 16 & 255) * k) << 16 | (unsigned long)((c0 >> 8 & 255) * k) << 8 |
+				                      (unsigned long)((c0 & 255) * k));
+			}
+		}
+		Window s = XCreateSimpleWindow(dpy, root, x, y, w, h, 0, 0, PAL[border_c]);
+		Pixmap pm = XCreatePixmap(dpy, s, w, h, depth);
+		XPutImage(dpy, pm, gc, im, 0, 0, 0, 0, w, h);
+		XDestroyImage(im);
+		XSetWindowBackgroundPixmap(dpy, s, pm);
+		XFreePixmap(dpy, pm);
+		XClassHint ch = { "c64side", "C64side" };
+		XSetClassHint(dpy, s, &ch);
+		long all = 0xFFFFFFFF;
+		XChangeProperty(dpy, s, A_TYPE, XA_ATOM, 32, PropModeReplace, (unsigned char *)&A_TYPE_DESK, 1);
+		XChangeProperty(dpy, s, A_DESKTOP, XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&all, 1);
+		XSizeHints sh = { .flags = USPosition | USSize, .x = x, .y = y, .width = w, .height = h };
+		XSetWMNormalHints(dpy, s, &sh);
+		XMapWindow(dpy, s);
+		sides[nsides++] = s;
+	}
+	if (m) XRRFreeMonitors(m);
+}
+
 static void make_keep(void)
 {
 	free(keep);
@@ -350,7 +418,7 @@ static void make_corners(void)
 	if (r < 2) r = 2;
 	XSetWindowAttributes a = { .override_redirect = True, .background_pixel = 0 };
 	for (int k = 0; k < 4; k++) {
-		int x = (k & 1) ? W - r : 0, y = (k & 2) ? H - r : 0;
+		int x = MX + ((k & 1) ? W - r : 0), y = MY + ((k & 2) ? H - r : 0);
 		if (!corners[k])
 			corners[k] = XCreateWindow(dpy, root, x, y, r, r, 0, CopyFromParent, InputOutput, CopyFromParent,
 			                           CWOverrideRedirect | CWBackPixel, &a);
@@ -388,7 +456,7 @@ static void make_overlay(void)
 		return;
 	Colormap cm = XCreateColormap(dpy, root, vi.visual, AllocNone);
 	XSetWindowAttributes a = { .override_redirect = True, .colormap = cm, .border_pixel = 0, .background_pixel = 0 };
-	overlay = XCreateWindow(dpy, root, 0, 0, W, H, 0, 32, InputOutput, vi.visual,
+	overlay = XCreateWindow(dpy, root, MX, MY, W, H, 0, 32, InputOutput, vi.visual,
 	                        CWOverrideRedirect | CWColormap | CWBorderPixel | CWBackPixel, &a);
 	XShapeCombineRectangles(dpy, overlay, ShapeInput, 0, 0, NULL, 0, ShapeSet, Unsorted);
 	XClassHint ch = { "c64crt", "C64crt" };
@@ -433,6 +501,9 @@ static int ours(Window w)
 {
 	if (w == desk || (w && w == overlay) || vice_owns(w))
 		return 1;
+	for (int k = 0; k < nsides; k++)
+		if (w == sides[k])
+			return 1;
 	for (int k = 0; k < 4; k++)
 		if (w == corners[k])
 			return 1;
@@ -441,7 +512,11 @@ static int ours(Window w)
 
 static void set_struts(void)
 {
-	long s[12] = { bx, bx, by, by, 0, H - 1, 0, H - 1, 0, W - 1, 0, W - 1 };
+	// struts count from the edges of the whole root window, so only the sides of the
+	// primary monitor that are on the root's edge can have one
+	int rw = DisplayWidth(dpy, scr), rh = DisplayHeight(dpy, scr);
+	long s[12] = { MX == 0 ? bx : 0, MX + W >= rw ? bx : 0, MY == 0 ? by : 0, MY + H >= rh ? by : 0,
+	               MY, MY + H - 1, MY, MY + H - 1, MX, MX + W - 1, MX, MX + W - 1 };
 	XChangeProperty(dpy, desk, A_STRUTP, XA_CARDINAL, 32, PropModeReplace, (unsigned char *)s, 12);
 	XChangeProperty(dpy, desk, A_STRUT, XA_CARDINAL, 32, PropModeReplace, (unsigned char *)s, 4);
 }
@@ -456,8 +531,8 @@ static void run_hook(void)
 	path(f, sizeof f, "cache/c64/geom");
 	FILE *fp = fopen(f, "w");
 	if (fp) {
-		fprintf(fp, "W=%d\nH=%d\nBX=%d\nBY=%d\nPX=%d\nBORDER=#%06lx\nSCREEN=#%06lx\nTEXT=#%06lx\n",
-		        W, H, bx, by, P, PAL[border_c], PAL[screen_c], PAL[text_c]);
+		fprintf(fp, "W=%d\nH=%d\nMX=%d\nMY=%d\nBX=%d\nBY=%d\nPX=%d\nBORDER=#%06lx\nSCREEN=#%06lx\nTEXT=#%06lx\n",
+		        W, H, MX, MY, bx, by, P, PAL[border_c], PAL[screen_c], PAL[text_c]);
 		fclose(fp);
 	}
 	path(f, sizeof f, "bin/c64-hook");             // recolours bar, gtk, terminals...
@@ -498,8 +573,7 @@ static void rebuild(int hook)
 		XGetWindowAttributes(dpy, desk, &wa);
 		W = wa.width, H = wa.height;
 	} else {
-		W = DisplayWidth(dpy, scr);
-		H = DisplayHeight(dpy, scr);
+		monitor_rect(-1, 0, &MX, &MY, &W, &H);
 	}
 	read_scale();
 	read_colors();
@@ -514,7 +588,8 @@ static void rebuild(int hook)
 		layout();
 		wall_load();
 		wall_apply_border();
-		XMoveResizeWindow(dpy, desk, 0, 0, W, H);
+		XMoveResizeWindow(dpy, desk, MX, MY, W, H);
+		make_sides();
 	}
 	if (canvas) {
 		XftDrawDestroy(xd);
@@ -699,7 +774,9 @@ static void check_windows(void)
 		int cx, cy;
 		Window ch;
 		XTranslateCoordinates(dpy, w, root, 0, 0, &cx, &cy, &ch);
-		int top = cy - et, bottom = cy + wa.height + eb;
+		if (cx + wa.width <= MX || cx >= MX + W || cy >= MY + H)      // on another monitor
+			continue;
+		int top = cy - et - MY, bottom = cy + wa.height + eb - MY;
 		if (wa.width >= W && wa.height >= H)
 			continue;
 		Track *t = tracked(w);
@@ -714,7 +791,7 @@ static void check_windows(void)
 				later = 1;
 			} else {
 				int nh = wa.height - (reserve() - top);
-				moveresize(w, reserve(), t->resizing && nh >= 4 * C ? nh : 0);
+				moveresize(w, MY + reserve(), t->resizing && nh >= 4 * C ? nh : 0);
 				t->top = -1;
 			}
 		}
@@ -729,7 +806,7 @@ static void check_windows(void)
 	if (bar_win) {
 		int y = overlap ? bar_y_high() : bar_y_normal();
 		if (y != bar_y) {
-			XMoveWindow(dpy, bar_win, bx, y);
+			XMoveWindow(dpy, bar_win, MX + bx, MY + y);
 			bar_y = y;
 		}
 	}
@@ -918,7 +995,8 @@ static int folder_main(const char *dir)
 	if (ir < 1) ir = 1;
 	if (ir > 3) ir = 3;
 	int w = (ic * SLOT_W + 1) * C, h = (1 + ir * (SLOT_H + 1) + 1) * C;
-	int sw = DisplayWidth(dpy, scr), sh = DisplayHeight(dpy, scr);
+	int mx, my, sw, sh;
+	monitor_rect(-1, 0, &mx, &my, &sw, &sh);
 	if (strcmp(view, "icons") && lib_count_c64(folder_dir) > 0)  // library needs more room
 		w = sw * 3 / 4, h = sh * 4 / 5;
 	if (win_geom[2] > 0) w = win_geom[2], h = win_geom[3];
@@ -927,7 +1005,7 @@ static int folder_main(const char *dir)
 
 	XSetWindowAttributes a = { .event_mask = ExposureMask | ButtonPressMask | ButtonReleaseMask | ButtonMotionMask |
 	                                         KeyPressMask | StructureNotifyMask, .background_pixel = PAL[border_c] };
-	desk = XCreateWindow(dpy, root, win_geom[2] > 0 ? win_geom[0] : 0, win_geom[2] > 0 ? win_geom[1] : 0, w, h, 0,
+	desk = XCreateWindow(dpy, root, win_geom[2] > 0 ? win_geom[0] : mx, win_geom[2] > 0 ? win_geom[1] : my, w, h, 0,
 	                     CopyFromParent, InputOutput, CopyFromParent, CWEventMask | CWBackPixel, &a);
 	gc = XCreateGC(dpy, desk, 0, NULL);
 	XClassHint ch = { "c64folder", "C64folder" };
@@ -1090,18 +1168,17 @@ int main(int argc, char **argv)
 	A_MOVERESIZE = XInternAtom(dpy, "_NET_MOVERESIZE_WINDOW", False);
 	A_GRID = XInternAtom(dpy, "_C64_GRID", False);
 
-	W = DisplayWidth(dpy, scr);
-	H = DisplayHeight(dpy, scr);
+	monitor_rect(-1, 0, &MX, &MY, &W, &H);
 	XSetWindowAttributes a = { .event_mask = ExposureMask | ButtonPressMask | ButtonReleaseMask | ButtonMotionMask |
 	                                         KeyPressMask, .background_pixel = PAL[border_c] };
-	desk = XCreateWindow(dpy, root, 0, 0, W, H, 0, CopyFromParent, InputOutput, CopyFromParent, CWEventMask | CWBackPixel, &a);
+	desk = XCreateWindow(dpy, root, MX, MY, W, H, 0, CopyFromParent, InputOutput, CopyFromParent, CWEventMask | CWBackPixel, &a);
 	gc = XCreateGC(dpy, desk, 0, NULL);
 	XClassHint ch = { "c64desk", "C64desk" };
 	XSetClassHint(dpy, desk, &ch);
 	XStoreName(dpy, desk, "c64desk");
 	XWMHints wh = { .flags = InputHint, .input = True };
 	XSetWMHints(dpy, desk, &wh);
-	XSizeHints sh = { .flags = USPosition | USSize, .x = 0, .y = 0, .width = W, .height = H };
+	XSizeHints sh = { .flags = USPosition | USSize, .x = MX, .y = MY, .width = W, .height = H };
 	XSetWMNormalHints(dpy, desk, &sh);
 	XChangeProperty(dpy, desk, A_TYPE, XA_ATOM, 32, PropModeReplace, (unsigned char *)&A_TYPE_DESK, 1);
 	long all = 0xFFFFFFFF, pid = getpid();
@@ -1164,8 +1241,7 @@ int main(int argc, char **argv)
 				need_raise = 1;
 			} else if (ev.type == rr_ev + RRScreenChangeNotify) {
 				XRRUpdateConfiguration(&ev);
-				if (DisplayWidth(dpy, scr) != W || DisplayHeight(dpy, scr) != H)
-					rebuild(1);
+				rebuild(1);                       // size or monitor layout changed
 			} else if (ev.type == fx_ev + XFixesSelectionNotify) {
 				check_compositor();
 			}
